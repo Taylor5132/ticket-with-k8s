@@ -114,6 +114,41 @@ function App() {
   );
 }
 
+const PINNED_IDS: string[] = ["72", "31", "89", "25", "71"];
+
+function Banner({ items }: { items: PerformanceCard[] }) {
+  const [idx, setIdx] = useState(0);
+  const list = useMemo(
+    () => PINNED_IDS.map((id) => items.find((i) => i.id === id)).filter(Boolean) as PerformanceCard[],
+    [items],
+  );
+  useEffect(() => {
+    if (list.length === 0) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % list.length), 4000);
+    return () => clearInterval(t);
+  }, [list.length]);
+  if (list.length === 0) return null;
+  const item = list[idx];
+  return (
+    <div className="banner" style={{ backgroundImage: `url(${item.poster_url})` }}>
+      <div className="bannerOverlay">
+        <div className="bannerContent">
+          <span className="bannerGenre">{item.genre}</span>
+          <h2 className="bannerTitle">{item.title}</h2>
+          <p className="bannerMeta">{item.venue_name} · {item.area}</p>
+          <p className="bannerDate">{item.start_date} ~ {item.end_date}</p>
+          <Link className="bannerBtn" to={`/performances/${item.id}`}>자세히 보기</Link>
+        </div>
+        <div className="bannerDots">
+          {list.map((_, i) => <button key={i} className={`bannerDot${i === idx ? " active" : ""}`} onClick={() => setIdx(i)} />)}
+        </div>
+        <button className="bannerArrow bannerArrowL" onClick={() => setIdx((i) => (i - 1 + list.length) % list.length)}>‹</button>
+        <button className="bannerArrow bannerArrowR" onClick={() => setIdx((i) => (i + 1) % list.length)}>›</button>
+      </div>
+    </div>
+  );
+}
+
 function Dashboard() {
   const [items, setItems] = useState<PerformanceCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,6 +174,7 @@ function Dashboard() {
 
   return (
     <section>
+      <Banner items={items} />
       <h1>공연</h1>
       <Section title="오픈 예정" items={upcoming} />
       <FilterBand
