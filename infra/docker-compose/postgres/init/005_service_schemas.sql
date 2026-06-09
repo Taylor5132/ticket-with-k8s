@@ -17,6 +17,7 @@ CREATE TABLE booking_requests (
   user_id TEXT NOT NULL,
   performance_id TEXT NOT NULL,
   seat_id TEXT NOT NULL,
+  show_date DATE NOT NULL,
   status TEXT NOT NULL,
   failure_reason TEXT,
   booking_id TEXT,
@@ -36,7 +37,7 @@ CREATE TABLE bookings (
   seat_grade TEXT NOT NULL,
   paid_amount INTEGER NOT NULL,
   booked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (performance_id, seat_id)
+  UNIQUE (performance_id, performance_date, seat_id)
 );
 
 CREATE INDEX idx_booking_requests_user_id ON booking_requests(user_id);

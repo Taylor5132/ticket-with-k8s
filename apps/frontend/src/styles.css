@@ -112,21 +112,20 @@ h2 { font-size: 20px; margin: 0 0 14px; }
 .historyDate { font-size: 12px; color: #9aa09c; margin-top: 4px; }
 
 /* ── Responsive ── */
-/* ── Performance Calendar ── */
-.perfCalendar { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0 4px; }
-.monthCal { border: 1px solid #dde3df; border-radius: 10px; padding: 16px 14px; background: #fff; }
-.monthCalTitle { font-size: 14px; font-weight: 800; text-align: center; margin-bottom: 10px; color: #17201d; letter-spacing: .3px; }
-.monthCalGrid { display: grid; grid-template-columns: repeat(7, 34px); gap: 2px; }
-.calDayName { width: 34px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #b0bab6; }
-.calDayName.sun { color: #d97070; }
-.calDayName.sat { color: #7095c0; }
-.calDay { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 13px; border-radius: 50%; }
-.calEmpty { }
-.calMuted { color: #dde3df; font-weight: 400; }
-.calActive { font-weight: 900; color: #006b5b; background: #e6f4f1; }
-.calActive.sun { color: #b83030; background: #fce9e9; }
-.calActive.sat { color: #1a5a9a; background: #deeaf7; }
-.calMoreMonths { align-self: center; font-size: 13px; color: #8c9590; padding: 0 4px; }
+/* ── Date picker ── */
+.datePicker { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.dateChip { border: 1px solid #d9dfdb; background: #fff; border-radius: 6px; padding: 9px 14px; font-size: 14px; font-weight: 600; color: #17201d; cursor: pointer; transition: background .12s, border-color .12s; }
+.dateChip:hover { background: #eef7f5; border-color: #006b5b; color: #006b5b; }
+.dateChip.active { background: #006b5b; color: #fff; border-color: #006b5b; }
+
+/* ── Seats page date label ── */
+.seatsDate { font-size: 15px; font-weight: 700; color: #006b5b; margin: 2px 0 16px; }
+
+/* ── Booking status date ── */
+.statusDate { font-size: 15px; font-weight: 700; color: #006b5b; margin: 0; }
+
+/* ── My page show date ── */
+.historyShowDate { color: #006b5b !important; font-weight: 600 !important; }
 
 @media (max-width: 760px) {
   .topbar { height: auto; padding: 14px 16px; align-items: flex-start; flex-wrap: wrap; }
@@ -135,7 +134,4 @@ h2 { font-size: 20px; margin: 0 0 14px; }
   .seatMapWrapper { max-width: 100%; }
   .mypageGrid { grid-template-columns: 1fr; }
   h1 { font-size: 26px; }
-  .monthCalGrid { grid-template-columns: repeat(7, 30px); }
-  .calDay, .calDayName { width: 30px; }
-  .calDay { height: 30px; font-size: 12px; }
 }

@@ -1,4 +1,6 @@
 import os
+import re
+from datetime import date, timedelta
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +23,45 @@ GRADE_RULES = {
     "G": ("A", 60000),
     "H": ("A", 60000),
 }
+
+# Korean day names → Python weekday (0=Mon … 6=Sun)
+_KO_DOW = {"월": 0, "화": 1, "수": 2, "목": 3, "금": 4, "토": 5, "일": 6}
+
+
+def _schedule_days(schedule_text: str) -> set[int]:
+    """
+    Parse KOPIS-style schedule text and return the set of weekday ints the
+    performance runs on (0=Monday … 6=Sunday).
+
+    Handles:
+      "금요일(19:30)"
+      "토요일 ~ 일요일(14:00)"
+      "화요일 ~ 금요일(19:30), 토요일 ~ 일요일(15:00)"
+    Falls back to weekends {5, 6} when the text is empty or unparseable.
+    """
+    if not schedule_text:
+        return {5, 6}
+    cleaned = re.sub(r"\([^)]*\)", "", schedule_text)
+    days: set[int] = set()
+    for m in re.finditer(r"([월화수목금토일])요일\s*~\s*([월화수목금토일])요일", cleaned):
+        s, e = _KO_DOW[m.group(1)], _KO_DOW[m.group(2)]
+        days.update(range(s, e + 1) if e >= s else list(range(s, 7)) + list(range(0, e + 1)))
+    for m in re.finditer(r"([월화수목금토일])요일", cleaned):
+        days.add(_KO_DOW[m.group(1)])
+    return days or {5, 6}
+
+
+def compute_schedules(start: date | None, end: date | None, schedule_text: str | None, max_dates: int = 20) -> list[str]:
+    if not start or not end:
+        return []
+    days = _schedule_days(schedule_text or "")
+    result: list[str] = []
+    cur = start
+    while cur <= end and len(result) < max_dates:
+        if cur.weekday() in days:
+            result.append(cur.isoformat())
+        cur += timedelta(days=1)
+    return result
 
 
 @app.get("/health")
@@ -104,6 +145,7 @@ def performance_detail(performance_id: str) -> dict:
     if not row:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "요청한 정보를 찾을 수 없습니다."})
     guidance = row["schedule"] or row["description"] or ""
+    schedules = compute_schedules(row["start_date"], row["end_date"], row["schedule"])
     return {
         "id": str(row["id"]),
         "kopis_id": row["kopis_id"],
@@ -120,6 +162,7 @@ def performance_detail(performance_id: str) -> dict:
         "price_text": price_text(),
         "guidance_text": guidance,
         "intro_image_urls": list_intro_images(row["intro_image_urls"]),
+        "schedules": schedules,
         "venue": {
             "id": str(row["venue_id"]),
             "kopis_id": row["venue_kopis_id"],

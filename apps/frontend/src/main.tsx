@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Link, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Heart, LogOut, Ticket } from "lucide-react";
 import "./styles.css";
 
@@ -21,6 +21,14 @@ type Seat = { seat_id: string; row: string; number: number; grade: string; price
 const providerLabel: Record<string, string> = { dev: "데모", kakao: "카카오", google: "Google" };
 const gradeClass: Record<string, string> = { VIP: "vip", R: "r-grade", S: "s-grade", A: "a-grade" };
 const gradeLabel: Record<string, string> = { VIP: "VIP석 150,000원", R: "R석 120,000원", S: "S석 90,000원", A: "A석 60,000원" };
+
+const KO_DAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+function formatShowDate(s: string): string {
+  const [y, m, d] = s.split("-").map(Number);
+  const dow = new Date(y, m - 1, d).getDay();
+  return `${y}년 ${m}월 ${d}일 (${KO_DAYS[dow]})`;
+}
 
 function useAuth() {
   const [token, setToken] = useState(localStorage.getItem("token") ?? "");
@@ -215,97 +223,22 @@ function PerformanceCardView({ item }: { item: PerformanceCard }) {
   );
 }
 
-// ── Performance Calendar ─────────────────────────────────────────────────────
-
-function parseLocalDate(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-const CAL_MONTHS = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
-const CAL_DAYS   = ["일", "월", "화", "수", "목", "금", "토"];
-
-function MonthCalendar({ year, month, start, end }: { year: number; month: number; start: Date; end: Date }) {
-  const firstDow  = new Date(year, month, 1).getDay();
-  const totalDays = new Date(year, month + 1, 0).getDate();
-
-  const cells: (number | null)[] = Array(firstDow).fill(null);
-  for (let d = 1; d <= totalDays; d++) cells.push(d);
-  while (cells.length % 7) cells.push(null);
-
-  const isActive = (day: number) => {
-    const d = new Date(year, month, day);
-    return d >= start && d <= end;
-  };
-
-  return (
-    <div className="monthCal">
-      <div className="monthCalTitle">{year}년 {CAL_MONTHS[month]}</div>
-      <div className="monthCalGrid">
-        {CAL_DAYS.map((name, i) => (
-          <span key={name} className={`calDayName${i === 0 ? " sun" : i === 6 ? " sat" : ""}`}>{name}</span>
-        ))}
-        {cells.map((day, i) => {
-          const col = i % 7;
-          const active = day !== null && isActive(day);
-          return (
-            <span
-              key={i}
-              className={[
-                "calDay",
-                day === null ? "calEmpty" : active ? "calActive" : "calMuted",
-                col === 0 ? "sun" : col === 6 ? "sat" : "",
-              ].filter(Boolean).join(" ")}
-            >
-              {day ?? ""}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PerformanceCalendar({ startDate, endDate }: { startDate: string | null; endDate: string | null }) {
-  if (!startDate || !endDate) return null;
-
-  const start = parseLocalDate(startDate);
-  const end   = parseLocalDate(endDate);
-
-  const months: [number, number][] = [];
-  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
-  const last = new Date(end.getFullYear(), end.getMonth(), 1);
-  while (cur <= last) {
-    months.push([cur.getFullYear(), cur.getMonth()]);
-    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-  }
-
-  const visible = months.slice(0, 3);
-
-  return (
-    <div className="perfCalendar">
-      {visible.map(([y, m]) => (
-        <MonthCalendar key={`${y}-${m}`} year={y} month={m} start={start} end={end} />
-      ))}
-      {months.length > 3 && (
-        <span className="calMoreMonths">외 {months.length - 3}개월</span>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 function Detail({ token }: { token: string }) {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<any>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  useEffect(() => { api<any>(`/api/performances/${id}`).then(setDetail); }, [id]);
+  useEffect(() => {
+    api<any>(`/api/performances/${id}`).then(setDetail);
+    setSelectedDate(null);
+  }, [id]);
 
   if (!detail) return <p className="loadingMsg">불러오는 중입니다.</p>;
+
+  const schedules: string[] = detail.schedules ?? [];
 
   const toggleSave = async () => {
     if (!token) return alert("로그인이 필요한 기능입니다.");
@@ -325,6 +258,11 @@ function Detail({ token }: { token: string }) {
     }
   };
 
+  const goToSeats = () => {
+    if (!selectedDate) return;
+    navigate(`/performances/${id}/seats?show_date=${selectedDate}`);
+  };
+
   return (
     <section className="detail">
       <img className="poster" src={detail.poster_url} alt="" />
@@ -333,15 +271,34 @@ function Detail({ token }: { token: string }) {
         <p className="detailMeta">{detail.venue.name} · {detail.venue.province} {detail.venue.district}</p>
         <p className="detailMeta">{detail.start_date} ~ {detail.end_date}</p>
         <p className="detailMeta">{detail.genre} · {detail.runtime} · {detail.age_rating}</p>
+
         <div className="actions">
           <button onClick={toggleSave} disabled={saving} className={saved ? "savedBtn" : ""}>
             <Heart size={16} fill={saved ? "currentColor" : "none"} />
             {saved ? "관심공연 저장됨" : "관심공연"}
           </button>
-          <button className="primary" onClick={() => navigate(`/performances/${id}/seats`)}>예매하기</button>
+          <button className="primary" onClick={goToSeats} disabled={!selectedDate}>
+            {selectedDate ? "날짜 선택 완료 · 예매하기" : "날짜를 선택해 주세요"}
+          </button>
         </div>
-        <h2>공연 일정</h2>
-        <PerformanceCalendar startDate={detail.start_date} endDate={detail.end_date} />
+
+        <h2>날짜 선택</h2>
+        {schedules.length > 0 ? (
+          <div className="datePicker">
+            {schedules.map((d) => (
+              <button
+                key={d}
+                className={`dateChip${selectedDate === d ? " active" : ""}`}
+                onClick={() => setSelectedDate(selectedDate === d ? null : d)}
+              >
+                {formatShowDate(d)}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="empty">예매 가능한 날짜가 없습니다.</p>
+        )}
+
         <h2>좌석 / 가격</h2>
         <p>{detail.price_text}</p>
         <h2>관람 안내</h2>
@@ -358,6 +315,8 @@ function Detail({ token }: { token: string }) {
 
 function Seats({ token }: { token: string }) {
   const { id = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const showDate = searchParams.get("show_date") ?? "";
   const navigate = useNavigate();
   const [perfTitle, setPerfTitle] = useState("");
   const [seats, setSeats] = useState<Seat[]>([]);
@@ -366,14 +325,15 @@ function Seats({ token }: { token: string }) {
   const [booking, setBooking] = useState(false);
 
   useEffect(() => {
+    if (!showDate) { setLoading(false); return; }
     Promise.all([
       api<any>(`/api/performances/${id}`),
-      api<{ seats: Seat[] }>(`/api/performances/${id}/seat-availability`),
+      api<{ seats: Seat[] }>(`/api/performances/${id}/seat-availability?show_date=${showDate}`),
     ]).then(([perf, seatData]) => {
       setPerfTitle(perf.title);
       setSeats(seatData.seats);
     }).finally(() => setLoading(false));
-  }, [id]);
+  }, [id, showDate]);
 
   const rows = useMemo(() => {
     const map: Record<string, Seat[]> = {};
@@ -385,12 +345,12 @@ function Seats({ token }: { token: string }) {
 
   const book = async () => {
     if (!token) return alert("로그인이 필요한 기능입니다.");
-    if (!selected) return;
+    if (!selected || !showDate) return;
     setBooking(true);
     try {
       const data = await api<{ request_id: string }>("/api/booking-requests", token, {
         method: "POST",
-        body: JSON.stringify({ performance_id: id, seat_id: selected.seat_id }),
+        body: JSON.stringify({ performance_id: id, seat_id: selected.seat_id, show_date: showDate }),
       });
       navigate(`/booking/${data.request_id}`);
     } catch (e: any) {
@@ -399,6 +359,15 @@ function Seats({ token }: { token: string }) {
     }
   };
 
+  if (!showDate) {
+    return (
+      <section>
+        <h1>좌석 선택</h1>
+        <p className="empty">날짜가 선택되지 않았습니다. <Link to={`/performances/${id}`}>공연 상세</Link>에서 날짜를 선택해 주세요.</p>
+      </section>
+    );
+  }
+
   if (loading) return <section><h1>좌석 선택</h1><p className="loadingMsg">좌석 정보를 불러오는 중입니다...</p></section>;
 
   return (
@@ -406,6 +375,7 @@ function Seats({ token }: { token: string }) {
       <div className="seatsHeader">
         <Link to={`/performances/${id}`} className="backLink">← {perfTitle || "공연 상세"}</Link>
         <h1>좌석 선택</h1>
+        <p className="seatsDate">{formatShowDate(showDate)}</p>
       </div>
 
       <div className="gradeLegend">
@@ -503,6 +473,7 @@ function BookingStatus({ token }: { token: string }) {
       <section className="statusPage">
         <div className="statusIcon success">✓</div>
         <h1>예매 완료</h1>
+        {state.show_date && <p className="statusDate">{formatShowDate(state.show_date)}</p>}
         <p>예매가 정상적으로 처리되었습니다.</p>
         <div className="statusActions">
           <Link className="button primary" to="/mypage">마이페이지에서 확인</Link>
@@ -569,7 +540,8 @@ function MyPage({ token, user }: { token: string; user: User | null }) {
               <div className="historyTitle">{b.performance_title}</div>
               <div className="historyMeta">{b.venue_name}</div>
               <div className="historyMeta">{b.seat_id} · {b.seat_grade}석 · <strong>{b.paid_amount.toLocaleString()}원</strong></div>
-              <div className="historyDate">{b.booked_at.slice(0, 10)}</div>
+              <div className="historyMeta historyShowDate">{formatShowDate(b.performance_date)}</div>
+              <div className="historyDate">{b.booked_at.slice(0, 10)} 예매</div>
             </div>
           )) : <p className="empty">아직 예매내역이 없습니다.</p>}
         </Panel>

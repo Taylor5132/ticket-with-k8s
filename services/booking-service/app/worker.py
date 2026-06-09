@@ -65,16 +65,19 @@ def process(fields: dict) -> None:
     request_id = fields["booking_request_id"]
     performance_id = fields["performance_id"]
     seat_id = fields["seat_id"]
+    show_date = fields["show_date"]
     user_id = fields["user_id"]
-    lock_key = f"{performance_id}:{seat_id}"
+    lock_key = f"{performance_id}:{show_date}:{seat_id}"
 
     with engine.begin() as conn:
         conn.execute(text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"), {"lock_key": lock_key})
         set_request_status(conn, request_id, "PROCESSING")
 
         occupied = conn.execute(
-            text("SELECT 1 FROM bookings WHERE performance_id = :performance_id AND seat_id = :seat_id"),
-            {"performance_id": performance_id, "seat_id": seat_id},
+            text(
+                "SELECT 1 FROM bookings WHERE performance_id = :performance_id AND performance_date = :show_date AND seat_id = :seat_id"
+            ),
+            {"performance_id": performance_id, "show_date": show_date, "seat_id": seat_id},
         ).first()
         if occupied:
             set_request_status(conn, request_id, "FAILED", "SEAT_ALREADY_BOOKED")
@@ -114,7 +117,7 @@ def process(fields: dict) -> None:
                 VALUES
                   (:id, :booking_request_id, :user_id, :performance_id, :performance_title,
                    :venue_name, :performance_date, :seat_id, :seat_grade, :paid_amount)
-                ON CONFLICT (performance_id, seat_id) DO NOTHING
+                ON CONFLICT (performance_id, performance_date, seat_id) DO NOTHING
                 RETURNING id
                 """
             ),
@@ -125,7 +128,7 @@ def process(fields: dict) -> None:
                 "performance_id": performance_id,
                 "performance_title": performance["title"],
                 "venue_name": performance["venue"]["name"],
-                "performance_date": performance["start_date"],
+                "performance_date": show_date,
                 "seat_id": seat_id,
                 "seat_grade": seat["grade"],
                 "paid_amount": seat["price"],

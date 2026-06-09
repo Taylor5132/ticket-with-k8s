@@ -1,7 +1,7 @@
 import uuid
 
 import redis
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -17,6 +17,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 class BookingRequestCreate(BaseModel):
     performance_id: str
     seat_id: str
+    show_date: str  # YYYY-MM-DD
 
 
 @app.get("/health")
@@ -25,14 +26,16 @@ def health() -> dict:
 
 
 @app.get("/performances/{performance_id}/seat-availability")
-def seat_availability(performance_id: str) -> dict:
+def seat_availability(performance_id: str, show_date: str = Query(...)) -> dict:
     with engine.begin() as conn:
         rows = conn.execute(
-            text("SELECT seat_id FROM bookings WHERE performance_id = :performance_id"),
-            {"performance_id": performance_id},
+            text(
+                "SELECT seat_id FROM bookings WHERE performance_id = :pid AND performance_date = :show_date"
+            ),
+            {"pid": performance_id, "show_date": show_date},
         ).all()
     occupied = {row.seat_id for row in rows}
-    return {"performance_id": performance_id, "seats": generate_seats(occupied)}
+    return {"performance_id": performance_id, "show_date": show_date, "seats": generate_seats(occupied)}
 
 
 @app.post("/booking-requests")
@@ -46,11 +49,17 @@ def create_booking_request(body: BookingRequestCreate, user: dict = Depends(curr
         conn.execute(
             text(
                 """
-                INSERT INTO booking_requests (id, user_id, performance_id, seat_id, status)
-                VALUES (:id, :user_id, :performance_id, :seat_id, 'PENDING')
+                INSERT INTO booking_requests (id, user_id, performance_id, seat_id, show_date, status)
+                VALUES (:id, :user_id, :performance_id, :seat_id, :show_date, 'PENDING')
                 """
             ),
-            {"id": request_id, "user_id": user["id"], "performance_id": body.performance_id, "seat_id": body.seat_id},
+            {
+                "id": request_id,
+                "user_id": user["id"],
+                "performance_id": body.performance_id,
+                "seat_id": body.seat_id,
+                "show_date": body.show_date,
+            },
         )
     r.xadd(
         STREAM_NAME,
@@ -58,6 +67,7 @@ def create_booking_request(body: BookingRequestCreate, user: dict = Depends(curr
             "booking_request_id": request_id,
             "performance_id": body.performance_id,
             "seat_id": body.seat_id,
+            "show_date": body.show_date,
             "user_id": user["id"],
         },
     )
@@ -70,7 +80,7 @@ def booking_request(request_id: str, user: dict = Depends(current_user)) -> dict
         row = conn.execute(
             text(
                 """
-                SELECT id, status, failure_reason, booking_id
+                SELECT id, status, failure_reason, booking_id, show_date
                 FROM booking_requests
                 WHERE id = :id AND user_id = :user_id
                 """
@@ -79,7 +89,13 @@ def booking_request(request_id: str, user: dict = Depends(current_user)) -> dict
         ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "요청한 정보를 찾을 수 없습니다."})
-    return {"request_id": row["id"], "status": row["status"], "failure_reason": row["failure_reason"], "booking_id": row["booking_id"]}
+    return {
+        "request_id": row["id"],
+        "status": row["status"],
+        "failure_reason": row["failure_reason"],
+        "booking_id": row["booking_id"],
+        "show_date": row["show_date"].isoformat() if row["show_date"] else None,
+    }
 
 
 @app.get("/bookings/me")
