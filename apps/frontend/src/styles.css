@@ -26,6 +26,21 @@ h2 { font-size: 20px; margin: 0 0 14px; }
 .band { margin: 30px 0; }
 .loadingMsg { color: #68736e; }
 .empty { color: #68736e; }
+.banner { position: relative; width: 100%; height: 380px; border-radius: 12px; overflow: hidden; margin-bottom: 36px; background-size: cover; background-position: center; }
+.bannerOverlay { position: absolute; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: flex-end; padding: 44px 56px; }
+.bannerContent { color: #fff; max-width: 560px; }
+.bannerGenre { display: inline-block; background: #006b5b; color: #fff; border-radius: 999px; padding: 4px 14px; font-size: 13px; font-weight: 700; margin-bottom: 14px; }
+.bannerTitle { font-size: 28px; font-weight: 900; margin: 0 0 10px; line-height: 1.35; }
+.bannerMeta, .bannerDate { margin: 0 0 4px; color: rgba(255,255,255,.8); font-size: 14px; }
+.bannerBtn { display: inline-block; margin-top: 20px; background: #fff; color: #17201d; border-radius: 6px; padding: 9px 20px; font-weight: 700; font-size: 14px; }
+.bannerDots { position: absolute; bottom: 16px; right: 56px; display: flex; gap: 6px; align-items: center; }
+.bannerDot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.4); border: none; padding: 0; cursor: pointer; transition: all .25s; }
+.bannerDot.active { width: 22px; border-radius: 4px; background: #fff; }
+.bannerArrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,.12); color: #fff; border: none; border-radius: 50%; width: 38px; height: 38px; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .2s; }
+.bannerArrow:hover { background: rgba(255,255,255,.28); }
+.bannerArrowL { left: 14px; }
+.bannerArrowR { right: 14px; }
+@media (max-width: 760px) { .banner { height: 220px; border-radius: 8px; } .bannerOverlay { padding: 24px; } .bannerTitle { font-size: 18px; } }
 
 /* ── Performance grid ── */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
