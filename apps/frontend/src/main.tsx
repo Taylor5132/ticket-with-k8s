@@ -215,6 +215,87 @@ function PerformanceCardView({ item }: { item: PerformanceCard }) {
   );
 }
 
+// ── Performance Calendar ─────────────────────────────────────────────────────
+
+function parseLocalDate(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+const CAL_MONTHS = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+const CAL_DAYS   = ["일", "월", "화", "수", "목", "금", "토"];
+
+function MonthCalendar({ year, month, start, end }: { year: number; month: number; start: Date; end: Date }) {
+  const firstDow  = new Date(year, month, 1).getDay();
+  const totalDays = new Date(year, month + 1, 0).getDate();
+
+  const cells: (number | null)[] = Array(firstDow).fill(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(d);
+  while (cells.length % 7) cells.push(null);
+
+  const isActive = (day: number) => {
+    const d = new Date(year, month, day);
+    return d >= start && d <= end;
+  };
+
+  return (
+    <div className="monthCal">
+      <div className="monthCalTitle">{year}년 {CAL_MONTHS[month]}</div>
+      <div className="monthCalGrid">
+        {CAL_DAYS.map((name, i) => (
+          <span key={name} className={`calDayName${i === 0 ? " sun" : i === 6 ? " sat" : ""}`}>{name}</span>
+        ))}
+        {cells.map((day, i) => {
+          const col = i % 7;
+          const active = day !== null && isActive(day);
+          return (
+            <span
+              key={i}
+              className={[
+                "calDay",
+                day === null ? "calEmpty" : active ? "calActive" : "calMuted",
+                col === 0 ? "sun" : col === 6 ? "sat" : "",
+              ].filter(Boolean).join(" ")}
+            >
+              {day ?? ""}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PerformanceCalendar({ startDate, endDate }: { startDate: string | null; endDate: string | null }) {
+  if (!startDate || !endDate) return null;
+
+  const start = parseLocalDate(startDate);
+  const end   = parseLocalDate(endDate);
+
+  const months: [number, number][] = [];
+  let cur = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cur <= last) {
+    months.push([cur.getFullYear(), cur.getMonth()]);
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+  }
+
+  const visible = months.slice(0, 3);
+
+  return (
+    <div className="perfCalendar">
+      {visible.map(([y, m]) => (
+        <MonthCalendar key={`${y}-${m}`} year={y} month={m} start={start} end={end} />
+      ))}
+      {months.length > 3 && (
+        <span className="calMoreMonths">외 {months.length - 3}개월</span>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function Detail({ token }: { token: string }) {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -259,6 +340,8 @@ function Detail({ token }: { token: string }) {
           </button>
           <button className="primary" onClick={() => navigate(`/performances/${id}/seats`)}>예매하기</button>
         </div>
+        <h2>공연 일정</h2>
+        <PerformanceCalendar startDate={detail.start_date} endDate={detail.end_date} />
         <h2>좌석 / 가격</h2>
         <p>{detail.price_text}</p>
         <h2>관람 안내</h2>
