@@ -1,0 +1,138 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: event_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/docker-compose/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d event_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-bookworm
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  auth-service:
+    build: ./services/auth-service
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/auth_db
+      JWT_SECRET: dev-secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8001:8000"
+
+  event-service:
+    build: ./services/event-service
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/event_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+
+  saved-service:
+    build: ./services/saved-service
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      EVENT_SERVICE_URL: http://event-service:8000
+      JWT_SECRET: dev-secret
+    depends_on:
+      redis:
+        condition: service_healthy
+      event-service:
+        condition: service_started
+    ports:
+      - "8003:8000"
+
+  booking-api:
+    build: ./services/booking-service
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/booking_db
+      REDIS_URL: redis://redis:6379/0
+      EVENT_SERVICE_URL: http://event-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      JWT_SECRET: dev-secret
+      SERVICE_TOKEN: dev-service-token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      event-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+    ports:
+      - "8004:8000"
+
+  booking-worker:
+    build: ./services/booking-service
+    command: ["uv", "run", "python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/booking_db
+      REDIS_URL: redis://redis:6379/0
+      EVENT_SERVICE_URL: http://event-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      SERVICE_TOKEN: dev-service-token
+      CONSUMER_NAME: booking-worker-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      event-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
+  payment-service:
+    build: ./services/payment-service
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/payment_db
+      JWT_SECRET: dev-secret
+      SERVICE_TOKEN: dev-service-token
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8005:8000"
+
+  frontend:
+    build: ./apps/frontend
+    depends_on:
+      auth-service:
+        condition: service_started
+      event-service:
+        condition: service_started
+      saved-service:
+        condition: service_started
+      booking-api:
+        condition: service_started
+      payment-service:
+        condition: service_started
+    ports:
+      - "5173:5173"
+
+volumes:
+  postgres-data:
+  redis-data:

@@ -1,0 +1,6 @@
+.omc/
+__pycache__/
+*.pyc
+*.pyo
+.env
+node_modules/
