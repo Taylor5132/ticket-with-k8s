@@ -1,6 +1,6 @@
 update-manifest:
   script:
-    - git clone http://root:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
+    - git clone http://ci-manifest-token:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
     - cd manifest
     - # image tag 수정
     - git push
