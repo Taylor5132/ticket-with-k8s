@@ -34,6 +34,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/auth_db
       JWT_SECRET: dev-secret
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:5173/api/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,6 +123,8 @@ services:
 
   frontend:
     build: ./apps/frontend
+    environment:
+      VITE_GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
     depends_on:
       auth-service:
         condition: service_started
@@ -133,6 +139,38 @@ services:
     ports:
       - "5173:5173"
 
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./infra/docker-compose/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    depends_on:
+      - frontend
+      - auth-service
+      - event-service
+      - saved-service
+      - booking-api
+      - payment-service
+    restart: unless-stopped
+    profiles:
+      - tunnel
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - caddy
+    restart: unless-stopped
+    profiles:
+      - tunnel
+
 volumes:
   postgres-data:
   redis-data:
+  caddy-data:
+  caddy-config:

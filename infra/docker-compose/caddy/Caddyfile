@@ -1,0 +1,44 @@
+:80 {
+
+    # seat-availability goes to booking-api (must match before the broader /api/performances/* rule)
+    @seat_avail path_regexp ^/api/performances/[^/]+/seat-availability
+    handle @seat_avail {
+        uri strip_prefix /api
+        reverse_proxy booking-api:8000
+    }
+
+    handle /api/auth/* {
+        uri strip_prefix /api
+        reverse_proxy auth-service:8000
+    }
+
+    handle /api/saved/* {
+        uri strip_prefix /api
+        reverse_proxy saved-service:8000
+    }
+
+    handle /api/payments/* {
+        uri strip_prefix /api
+        reverse_proxy payment-service:8000
+    }
+
+    handle /api/booking-requests/* {
+        uri strip_prefix /api
+        reverse_proxy booking-api:8000
+    }
+
+    handle /api/bookings/* {
+        uri strip_prefix /api
+        reverse_proxy booking-api:8000
+    }
+
+    handle /api/performances/* {
+        uri strip_prefix /api
+        reverse_proxy event-service:8000
+    }
+
+    # Everything else → Vite frontend
+    handle {
+        reverse_proxy frontend:5173
+    }
+}

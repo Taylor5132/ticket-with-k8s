@@ -18,6 +18,8 @@ type PerformanceCard = {
 };
 type Seat = { seat_id: string; row: string; number: number; grade: string; price: number; status: "AVAILABLE" | "OCCUPIED" };
 
+const GOOGLE_OAUTH_ENABLED = import.meta.env.VITE_GOOGLE_OAUTH_ENABLED === "true";
+
 const providerLabel: Record<string, string> = { dev: "데모", kakao: "카카오", google: "Google" };
 const gradeClass: Record<string, string> = { VIP: "vip", R: "r-grade", S: "s-grade", A: "a-grade" };
 const gradeLabel: Record<string, string> = { VIP: "VIP석 150,000원", R: "R석 120,000원", S: "S석 90,000원", A: "A석 60,000원" };
@@ -36,7 +38,31 @@ function useAuth() {
     const raw = localStorage.getItem("user");
     try { return raw ? JSON.parse(raw) : null; } catch { return null; }
   });
-  const login = async (login_id: "demo-basic" | "demo-rich", provider: "kakao" | "google") => {
+
+  // Handle token delivered via URL params after Google OAuth redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get("token");
+    const userParam = params.get("user");
+    const oauthError = params.get("oauth_error");
+    if (oauthError) {
+      alert("Google 로그인에 실패했습니다. 다시 시도해 주세요.");
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+    if (tokenParam && userParam) {
+      try {
+        const userObj = JSON.parse(decodeURIComponent(userParam));
+        localStorage.setItem("token", tokenParam);
+        localStorage.setItem("user", JSON.stringify(userObj));
+        setToken(tokenParam);
+        setUser(userObj);
+      } catch {}
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const devLogin = async (login_id: "demo-basic" | "demo-rich", provider: "kakao" | "google") => {
     const display_name = login_id === "demo-rich" ? "포인트 많은 데모 사용자" : "기본 데모 사용자";
     try {
       const response = await fetch("/api/auth/dev-login", {
@@ -54,13 +80,18 @@ function useAuth() {
       alert(e.message ?? "로그인에 실패했습니다.");
     }
   };
+
+  const googleLogin = GOOGLE_OAUTH_ENABLED
+    ? () => { window.location.href = "/api/auth/google"; }
+    : () => devLogin("demo-rich", "google");
+
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken("");
     setUser(null);
   };
-  return { token, user, login, logout };
+  return { token, user, devLogin, googleLogin, logout };
 }
 
 async function api<T>(path: string, token?: string, init?: RequestInit): Promise<T> {
@@ -95,8 +126,8 @@ function App() {
             </>
           ) : (
             <>
-              <button className="loginBtn kakao" onClick={() => auth.login("demo-basic", "kakao")}>카카오로 시작하기</button>
-              <button className="loginBtn google" onClick={() => auth.login("demo-rich", "google")}>Google로 시작하기</button>
+              <button className="loginBtn kakao" onClick={() => auth.devLogin("demo-basic", "kakao")}>카카오로 시작하기</button>
+              <button className="loginBtn google" onClick={auth.googleLogin}>Google로 시작하기</button>
             </>
           )}
         </div>
