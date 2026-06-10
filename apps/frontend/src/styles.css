@@ -430,14 +430,25 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
 .seat { flex: 0 0 64px; width: 64px; height: 64px; min-width: 64px; min-height: 64px; justify-content: center; padding: 0; font-size: 16px; font-weight: 700; border-radius: 10px; }
 /* 중앙 통로: 5번과 6번 좌석 사이 */
 .seatRow .seat:nth-of-type(6) { margin-left: 30px; }
-.seat.vip { background: #fff7e0; border-color: #e8b931; color: #8a6400; }
-.seat.vip:hover:not(:disabled) { background: #ffefbf; }
-.seat.r-grade { background: #e9f1fe; border-color: #7fa8eb; color: #1b4fa8; }
-.seat.r-grade:hover:not(:disabled) { background: #d8e7fd; }
-.seat.s-grade { background: #e8f7ee; border-color: #5dbe89; color: #166b3f; }
-.seat.s-grade:hover:not(:disabled) { background: #d5f0e1; }
-.seat.a-grade { background: #f4f5f7; border-color: #c4cad2; color: #4e5968; }
-.seat.a-grade:hover:not(:disabled) { background: #e9ebee; }
+<<<<<<< HEAD
+.seat.vip { background: #fef08a; border-color: #eab308; color: #713f12; }
+.seat.vip:hover:not(:disabled) { background: #fde047; }
+.seat.r-grade { background: #fed7aa; border-color: #f97316; color: #7c2d12; }
+.seat.r-grade:hover:not(:disabled) { background: #fdba74; }
+.seat.s-grade { background: #bfdbfe; border-color: #3b82f6; color: #1e3a8a; }
+.seat.s-grade:hover:not(:disabled) { background: #93c5fd; }
+.seat.a-grade { background: #e9d5ff; border-color: #a855f7; color: #4c1d95; }
+.seat.a-grade:hover:not(:disabled) { background: #d8b4fe; }
+=======
+.seat.vip { background: #fde047; border-color: #ca8a04; color: #713f12; }
+.seat.vip:hover:not(:disabled) { background: #facc15; }
+.seat.r-grade { background: #fb923c; border-color: #c2410c; color: #431407; }
+.seat.r-grade:hover:not(:disabled) { background: #f97316; }
+.seat.s-grade { background: #60a5fa; border-color: #1d4ed8; color: #1e3a8a; }
+.seat.s-grade:hover:not(:disabled) { background: #3b82f6; }
+.seat.a-grade { background: #a78bfa; border-color: #6d28d9; color: #2e1065; }
+.seat.a-grade:hover:not(:disabled) { background: #8b5cf6; }
+>>>>>>> 5714632 (feat: update seat color)
 .seat.occupied { background: #eaecef !important; border-color: #eaecef !important; color: #b0b8c1 !important; }
 .seat.selected {
   background: var(--primary) !important;
@@ -453,10 +464,17 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
 .gradeList { list-style: none; margin: 0; padding: 0; }
 .gradeList li { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13.5px; }
 .gradeDot { width: 12px; height: 12px; border-radius: 4px; border: 1px solid transparent; flex-shrink: 0; }
-.gradeDot.vip { background: #fff7e0; border-color: #e8b931; }
-.gradeDot.r-grade { background: #e9f1fe; border-color: #7fa8eb; }
-.gradeDot.s-grade { background: #e8f7ee; border-color: #5dbe89; }
-.gradeDot.a-grade { background: #f4f5f7; border-color: #c4cad2; }
+<<<<<<< HEAD
+.gradeDot.vip { background: #fef08a; border-color: #eab308; }
+.gradeDot.r-grade { background: #fed7aa; border-color: #f97316; }
+.gradeDot.s-grade { background: #bfdbfe; border-color: #3b82f6; }
+.gradeDot.a-grade { background: #e9d5ff; border-color: #a855f7; }
+=======
+.gradeDot.vip { background: #fde047; border-color: #ca8a04; }
+.gradeDot.r-grade { background: #fb923c; border-color: #c2410c; }
+.gradeDot.s-grade { background: #60a5fa; border-color: #1d4ed8; }
+.gradeDot.a-grade { background: #a78bfa; border-color: #6d28d9; }
+>>>>>>> 5714632 (feat: update seat color)
 .gradeDot.occupied { background: #eaecef; }
 .gradeName { color: var(--ink-600); }
 .gradePrice { margin-left: auto; font-weight: 600; }
