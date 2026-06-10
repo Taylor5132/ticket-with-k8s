@@ -409,26 +409,26 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
 .seatsLayout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 44px;
+  gap: 36px;
   align-items: start;
 }
-.seatMapWrapper { max-width: 700px; margin: 0 auto; }
+.seatMapWrapper { width: 100%; margin: 0 auto; }
 .stage {
   text-align: center;
   background: var(--ink-900);
   color: rgba(255, 255, 255, .9);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 28px;
-  font-size: 12px;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 36px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 6px;
+  letter-spacing: 10px;
 }
-.seatRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.rowLabel { width: 24px; flex-shrink: 0; text-align: center; font-size: 12px; font-weight: 700; color: var(--ink-400); }
-.seat { flex: 1; min-width: 0; aspect-ratio: 1 / 1; justify-content: center; padding: 0; font-size: 13px; font-weight: 600; border-radius: 8px; }
+.seatRow { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.rowLabel { width: 28px; flex-shrink: 0; text-align: center; font-size: 13px; font-weight: 700; color: var(--ink-400); }
+.seat { flex: 1; min-width: 0; aspect-ratio: 1 / 1; justify-content: center; padding: 0; font-size: 14px; font-weight: 600; border-radius: 9px; }
 /* 중앙 통로: 5번과 6번 좌석 사이 */
-.seatRow .seat:nth-of-type(6) { margin-left: 22px; }
+.seatRow .seat:nth-of-type(6) { margin-left: 26px; }
 .seat.vip { background: #fff7e0; border-color: #e8b931; color: #8a6400; }
 .seat.vip:hover:not(:disabled) { background: #ffefbf; }
 .seat.r-grade { background: #e9f1fe; border-color: #7fa8eb; color: #1b4fa8; }
