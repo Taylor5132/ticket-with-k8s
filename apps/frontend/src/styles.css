@@ -412,23 +412,24 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
   gap: 36px;
   align-items: start;
 }
-.seatMapWrapper { width: 100%; margin: 0 auto; }
+/* 좌석은 고정 크기로 시원하게. 화면이 좁으면 가로 스크롤. */
+.seatMapWrapper { width: max-content; max-width: 100%; margin: 0 auto; overflow-x: auto; padding-bottom: 4px; }
 .stage {
   text-align: center;
   background: var(--ink-900);
   color: rgba(255, 255, 255, .9);
   border-radius: 12px;
-  padding: 18px;
-  margin-bottom: 36px;
-  font-size: 15px;
+  padding: 20px;
+  margin-bottom: 40px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 10px;
+  letter-spacing: 12px;
 }
-.seatRow { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
-.rowLabel { width: 28px; flex-shrink: 0; text-align: center; font-size: 13px; font-weight: 700; color: var(--ink-400); }
-.seat { flex: 1; min-width: 0; aspect-ratio: 1 / 1; justify-content: center; padding: 0; font-size: 14px; font-weight: 600; border-radius: 9px; }
+.seatRow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.rowLabel { width: 30px; flex-shrink: 0; text-align: center; font-size: 14px; font-weight: 700; color: var(--ink-400); }
+.seat { flex: none; width: 64px; aspect-ratio: 1 / 1; justify-content: center; padding: 0; font-size: 16px; font-weight: 700; border-radius: 10px; }
 /* 중앙 통로: 5번과 6번 좌석 사이 */
-.seatRow .seat:nth-of-type(6) { margin-left: 26px; }
+.seatRow .seat:nth-of-type(6) { margin-left: 30px; }
 .seat.vip { background: #fff7e0; border-color: #e8b931; color: #8a6400; }
 .seat.vip:hover:not(:disabled) { background: #ffefbf; }
 .seat.r-grade { background: #e9f1fe; border-color: #7fa8eb; color: #1b4fa8; }
@@ -543,6 +544,10 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
   .filterItem.active { border-color: var(--primary); }
   .seatsLayout { grid-template-columns: 1fr; gap: 24px; }
   .seatPanel { position: static; }
+  .seat { width: 48px; font-size: 14px; }
+  .seatRow { gap: 7px; margin-bottom: 7px; }
+  .seatRow .seat:nth-of-type(6) { margin-left: 18px; }
+  .stage { padding: 14px; font-size: 13px; letter-spacing: 8px; margin-bottom: 24px; }
   .detailTop { grid-template-columns: 1fr; gap: 24px; }
   .poster { max-width: 280px; }
   .mypageGrid { grid-template-columns: 1fr; }
