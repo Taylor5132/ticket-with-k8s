@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
 import { LogOut, Ticket } from "lucide-react";
-import { providerLabel, useAuth } from "./auth";
+import { useAuth } from "./auth";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Detail from "./pages/Detail";
@@ -18,13 +18,14 @@ export default function App() {
           <Link to="/" className="brand"><Ticket size={22} /> 티켓랩</Link>
           <nav>
             <NavLink to="/" end>공연</NavLink>
-            <NavLink to="/mypage">마이페이지</NavLink>
           </nav>
           <div className="topbarRight">
             {user ? (
               <>
                 <span className="userName">{user.display_name}</span>
-                <span className="providerTag">{providerLabel[user.provider] ?? user.provider}</span>
+                <Link to="/mypage" className="userAvatar" title="마이페이지" aria-label="마이페이지">
+                  {user.display_name.slice(0, 1)}
+                </Link>
                 <button className="iconBtn" onClick={logout} title="로그아웃" aria-label="로그아웃"><LogOut size={16} /></button>
               </>
             ) : (

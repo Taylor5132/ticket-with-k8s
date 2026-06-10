@@ -39,12 +39,12 @@ export function Banner({ items }: { items: PerformanceSummary[] }) {
   );
 }
 
-export function PerformanceCardView({ item }: { item: PerformanceSummary }) {
+export function PerformanceCardView({ item, badge }: { item: PerformanceSummary; badge?: string }) {
   return (
     <Link className="posterCard" to={`/performances/${item.id}`}>
       <div className="posterWrap">
         <img src={item.poster_url ?? ""} alt={item.title} loading="lazy" />
-        {item.status === "공연예정" && <span className="posterBadge">오픈예정</span>}
+        {badge && <span className="posterBadge">{badge}</span>}
       </div>
       <strong className="posterTitle">{item.title}</strong>
       <span className="posterVenue">{item.venue_name}</span>
@@ -54,7 +54,11 @@ export function PerformanceCardView({ item }: { item: PerformanceSummary }) {
 }
 
 /** 가로 스크롤 한 줄 배치. 넘치면 좌우 화살표로 스크롤. */
-export function PosterRow({ title, items }: { title: string; items: PerformanceSummary[] }) {
+export function PosterRow({ title, items, getBadge }: {
+  title: string;
+  items: PerformanceSummary[];
+  getBadge?: (item: PerformanceSummary) => string | undefined;
+}) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const scrollBy = (dir: 1 | -1) => {
     const el = scrollerRef.current;
@@ -73,7 +77,7 @@ export function PosterRow({ title, items }: { title: string; items: PerformanceS
       </div>
       {items.length ? (
         <div className="rowScroller" ref={scrollerRef}>
-          {items.map((item) => <PerformanceCardView key={item.id} item={item} />)}
+          {items.map((item) => <PerformanceCardView key={item.id} item={item} badge={getBadge?.(item)} />)}
         </div>
       ) : (
         <p className="empty">표시할 공연이 없습니다.</p>

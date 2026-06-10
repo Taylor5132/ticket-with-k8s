@@ -76,6 +76,21 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
 .loginLink { background: var(--primary); color: #fff; font-size: 14px; font-weight: 700; padding: 9px 18px; border-radius: 9px; }
 .loginLink:hover { background: var(--primary-dark); }
 .userName { font-size: 14px; font-weight: 700; }
+.userAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary-tint);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  flex-shrink: 0;
+  transition: box-shadow .15s;
+}
+.userAvatar:hover { box-shadow: 0 0 0 3px var(--primary-tint); }
 .providerTag { font-size: 12px; color: var(--ink-400); background: var(--bg-soft); border-radius: 999px; padding: 3px 9px; }
 .iconBtn { width: 36px; height: 36px; padding: 0; justify-content: center; }
 
@@ -397,21 +412,23 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
   gap: 44px;
   align-items: start;
 }
-.seatMapWrapper { max-width: 560px; margin: 0 auto; }
+.seatMapWrapper { max-width: 700px; margin: 0 auto; }
 .stage {
   text-align: center;
   background: var(--ink-900);
   color: rgba(255, 255, 255, .9);
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 20px;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 28px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 6px;
 }
-.seatRow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.rowLabel { width: 22px; flex-shrink: 0; text-align: center; font-size: 12px; font-weight: 700; color: var(--ink-400); }
-.seat { flex: 1; min-width: 0; min-height: 38px; justify-content: center; padding: 0; font-size: 12px; font-weight: 600; border-radius: 6px; }
+.seatRow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.rowLabel { width: 24px; flex-shrink: 0; text-align: center; font-size: 12px; font-weight: 700; color: var(--ink-400); }
+.seat { flex: 1; min-width: 0; aspect-ratio: 1 / 1; justify-content: center; padding: 0; font-size: 13px; font-weight: 600; border-radius: 8px; }
+/* 중앙 통로: 5번과 6번 좌석 사이 */
+.seatRow .seat:nth-of-type(6) { margin-left: 22px; }
 .seat.vip { background: #fff7e0; border-color: #e8b931; color: #8a6400; }
 .seat.vip:hover:not(:disabled) { background: #ffefbf; }
 .seat.r-grade { background: #e9f1fe; border-color: #7fa8eb; color: #1b4fa8; }

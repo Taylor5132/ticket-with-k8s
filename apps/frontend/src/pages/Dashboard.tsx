@@ -6,6 +6,14 @@ import { Banner, GridSection, PosterRow } from "../components";
 
 type CountedOption = [name: string, count: number];
 
+/** 오늘 자정 기준 남은 일수. 내일이면 1, 모레면 2. */
+function dDay(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((new Date(y, m - 1, d).getTime() - today.getTime()) / 86_400_000);
+}
+
 function countBy(items: PerformanceSummary[], key: (i: PerformanceSummary) => string): CountedOption[] {
   const map = new Map<string, number>();
   for (const item of items) {
@@ -65,7 +73,16 @@ export default function Dashboard() {
     () => items.filter((i) => (!genre || i.genre === genre) && (!area || i.area === area)),
     [items, genre, area],
   );
-  const upcoming = useMemo(() => filtered.filter((i) => i.status === "공연예정"), [filtered]);
+  const upcoming = useMemo(
+    () => filtered
+      .filter((i) => {
+        if (i.status !== "공연예정") return false;
+        const d = dDay(i.start_date);
+        return d >= 1 && d <= 3;
+      })
+      .sort((a, b) => dDay(a.start_date) - dDay(b.start_date)),
+    [filtered],
+  );
 
   if (loading) return <section><p className="loadingMsg">공연 목록을 불러오는 중입니다...</p></section>;
 
@@ -89,7 +106,7 @@ export default function Dashboard() {
         </aside>
 
         <div className="dashboardMain">
-          <PosterRow title="오픈 예정" items={upcoming} />
+          <PosterRow title="오픈 예정" items={upcoming} getBadge={(i) => `D-${dDay(i.start_date)}`} />
           <GridSection
             title={activeLabels ? `${activeLabels} 공연` : "전체 공연"}
             count={filtered.length}
