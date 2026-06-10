@@ -1,9 +1,11 @@
 import json
 import os
+import re
 import secrets
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import httpx
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -32,10 +34,27 @@ app = FastAPI(title="auth-service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+@app.on_event("startup")
+def migrate():
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT"))
+
+
 class DevLoginRequest(BaseModel):
     provider: str
     login_id: str
     display_name: str
+
+
+class SignupRequest(BaseModel):
+    login_id: str
+    password: str
+    display_name: str
+
+
+class LocalLoginRequest(BaseModel):
+    login_id: str
+    password: str
 
 
 def make_user_id(login_id: str) -> str:
@@ -99,6 +118,51 @@ def dev_login(body: DevLoginRequest) -> dict:
     user_id = make_user_id(body.login_id)
     with engine.begin() as conn:
         user = upsert_user(conn, user_id, body.provider, body.login_id, body.display_name)
+    return {"access_token": issue_token(user), "token_type": "bearer", "user": user}
+
+
+@app.post("/auth/signup")
+def signup(body: SignupRequest) -> dict:
+    if not re.fullmatch(r"[a-zA-Z0-9_]{4,20}", body.login_id):
+        raise HTTPException(status_code=400, detail={"code": "INVALID_ID", "message": "아이디는 4~20자 영문·숫자·밑줄만 사용할 수 있습니다."})
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail={"code": "WEAK_PASSWORD", "message": "비밀번호는 8자 이상이어야 합니다."})
+    if not body.display_name.strip():
+        raise HTTPException(status_code=400, detail={"code": "INVALID_NAME", "message": "닉네임을 입력해 주세요."})
+
+    pw_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    user_id = make_user_id(f"local-{body.login_id}")
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO users (id, provider, login_id, display_name, password_hash)
+                    VALUES (:id, 'local', :login_id, :display_name, :password_hash)
+                """),
+                {"id": user_id, "login_id": body.login_id, "display_name": body.display_name.strip(), "password_hash": pw_hash},
+            )
+            row = conn.execute(
+                text("SELECT id, provider, login_id, display_name FROM users WHERE provider = 'local' AND login_id = :login_id"),
+                {"login_id": body.login_id},
+            ).mappings().one()
+    except Exception:
+        raise HTTPException(status_code=409, detail={"code": "ID_TAKEN", "message": "이미 사용 중인 아이디입니다."})
+    user = dict(row)
+    return {"access_token": issue_token(user), "token_type": "bearer", "user": user}
+
+
+@app.post("/auth/login")
+def local_login(body: LocalLoginRequest) -> dict:
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT id, provider, login_id, display_name, password_hash FROM users WHERE provider = 'local' AND login_id = :login_id"),
+            {"login_id": body.login_id},
+        ).mappings().first()
+    if not row or not row["password_hash"]:
+        raise HTTPException(status_code=401, detail={"code": "INVALID_CREDENTIALS", "message": "아이디 또는 비밀번호가 올바르지 않습니다."})
+    if not bcrypt.checkpw(body.password.encode(), row["password_hash"].encode()):
+        raise HTTPException(status_code=401, detail={"code": "INVALID_CREDENTIALS", "message": "아이디 또는 비밀번호가 올바르지 않습니다."})
+    user = {"id": row["id"], "provider": row["provider"], "login_id": row["login_id"], "display_name": row["display_name"]}
     return {"access_token": issue_token(user), "token_type": "bearer", "user": user}
 
 

@@ -29,6 +29,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: strip,
       },
+      "/api/queue": {
+        target: "http://booking-api:8000",
+        changeOrigin: true,
+        rewrite: strip,
+      },
       "/api/booking-requests": {
         target: "http://booking-api:8000",
         changeOrigin: true,
