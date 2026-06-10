@@ -137,7 +137,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/performances/:id" element={<Detail token={auth.token} />} />
           <Route path="/performances/:id/seats" element={<Seats token={auth.token} />} />
-          <Route path="/booking/:requestId" element={<BookingStatus token={auth.token} />} />
+          <Route path="/booking" element={<BookingStatus token={auth.token} />} />
           <Route path="/mypage" element={<MyPage token={auth.token} user={auth.user} />} />
         </Routes>
       </main>
@@ -387,7 +387,7 @@ function Seats({ token }: { token: string }) {
   const navigate = useNavigate();
   const [perfTitle, setPerfTitle] = useState("");
   const [seats, setSeats] = useState<Seat[]>([]);
-  const [selected, setSelected] = useState<Seat | null>(null);
+  const [selected, setSelected] = useState<Seat[]>([]);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
 
@@ -412,14 +412,18 @@ function Seats({ token }: { token: string }) {
 
   const book = async () => {
     if (!token) return alert("로그인이 필요한 기능입니다.");
-    if (!selected || !showDate) return;
+    if (selected.length === 0 || !showDate) return;
     setBooking(true);
     try {
-      const data = await api<{ request_id: string }>("/api/booking-requests", token, {
-        method: "POST",
-        body: JSON.stringify({ performance_id: id, seat_id: selected.seat_id, show_date: showDate }),
-      });
-      navigate(`/booking/${data.request_id}`);
+      const results = await Promise.all(
+        selected.map((seat) =>
+          api<{ request_id: string }>("/api/booking-requests", token, {
+            method: "POST",
+            body: JSON.stringify({ performance_id: id, seat_id: seat.seat_id, show_date: showDate }),
+          })
+        )
+      );
+      navigate(`/booking?ids=${results.map((r) => r.request_id).join(",")}`);
     } catch (e: any) {
       alert(e.message);
       setBooking(false);
@@ -465,9 +469,13 @@ function Seats({ token }: { token: string }) {
                   "seat",
                   gradeClass[seat.grade] ?? "",
                   seat.status === "OCCUPIED" ? "occupied" : "available",
-                  selected?.seat_id === seat.seat_id ? "selected" : "",
+                  selected.some((s) => s.seat_id === seat.seat_id) ? "selected" : "",
                 ].filter(Boolean).join(" ")}
-                onClick={() => setSelected(seat)}
+                onClick={() => setSelected((prev) =>
+                  prev.some((s) => s.seat_id === seat.seat_id)
+                    ? prev.filter((s) => s.seat_id !== seat.seat_id)
+                    : [...prev, seat]
+                )}
                 title={`${seat.seat_id} · ${seat.grade}석 · ${seat.price.toLocaleString()}원`}
               >
                 {seat.number}
@@ -478,37 +486,54 @@ function Seats({ token }: { token: string }) {
       </div>
 
       <aside className="summary">
-        {selected ? (
+        {selected.length > 0 ? (
           <>
-            <strong>{selected.seat_id}</strong>
-            <span>{selected.grade}석</span>
-            <span className="summaryPrice">{selected.price.toLocaleString()}원</span>
+            {selected.map((s) => (
+              <div key={s.seat_id} className="summaryRow">
+                <strong>{s.seat_id}</strong>
+                <span>{s.grade}석</span>
+                <span className="summaryPrice">{s.price.toLocaleString()}원</span>
+              </div>
+            ))}
+            {selected.length > 1 && (
+              <div className="summaryTotal">
+                총 {selected.length}석 · {selected.reduce((sum, s) => sum + s.price, 0).toLocaleString()}원
+              </div>
+            )}
           </>
         ) : (
           <span className="summaryHint">좌석을 선택해 주세요.</span>
         )}
       </aside>
-      <button className="primary" onClick={book} disabled={!selected || booking}>
-        {booking ? "처리 중..." : "결제하기"}
+      <button className="primary" onClick={book} disabled={selected.length === 0 || booking}>
+        {booking ? "처리 중..." : selected.length > 1 ? `${selected.length}석 결제하기` : "결제하기"}
       </button>
     </section>
   );
 }
 
 function BookingStatus({ token }: { token: string }) {
-  const { requestId = "" } = useParams();
-  const [state, setState] = useState<any>(null);
+  const [searchParams] = useSearchParams();
+  const requestIds = useMemo(
+    () => (searchParams.get("ids") ?? "").split(",").filter(Boolean),
+    [searchParams]
+  );
+  const [states, setStates] = useState<Record<string, any>>({});
   const stoppedRef = useRef(false);
 
   useEffect(() => {
-    if (!requestId || !token) return;
+    if (requestIds.length === 0 || !token) return;
     stoppedRef.current = false;
     const poll = async () => {
       if (stoppedRef.current) return;
       try {
-        const data = await api<any>(`/api/booking-requests/${requestId}`, token);
-        setState(data);
-        if (data.status === "CONFIRMED" || data.status === "FAILED") {
+        const results = await Promise.all(
+          requestIds.map((rid) => api<any>(`/api/booking-requests/${rid}`, token))
+        );
+        const next: Record<string, any> = {};
+        for (const r of results) next[r.request_id] = r;
+        setStates(next);
+        if (results.every((r) => r.status === "CONFIRMED" || r.status === "FAILED")) {
           stoppedRef.current = true;
         }
       } catch {}
@@ -516,7 +541,7 @@ function BookingStatus({ token }: { token: string }) {
     poll();
     const timer = setInterval(poll, 1000);
     return () => { stoppedRef.current = true; clearInterval(timer); };
-  }, [requestId, token]);
+  }, [requestIds, token]);
 
   const failureMsg: Record<string, string> = {
     SEAT_ALREADY_BOOKED: "이미 예매된 좌석입니다. 다른 좌석을 선택해 주세요.",
@@ -525,7 +550,13 @@ function BookingStatus({ token }: { token: string }) {
     WORKER_ERROR: "예매 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
   };
 
-  if (!state || state.status === "PENDING" || state.status === "PROCESSING") {
+  const results = Object.values(states);
+  const allDone = results.length === requestIds.length &&
+    results.every((r) => r.status === "CONFIRMED" || r.status === "FAILED");
+  const confirmed = results.filter((r) => r.status === "CONFIRMED");
+  const failed = results.filter((r) => r.status === "FAILED");
+
+  if (!allDone || results.length === 0) {
     return (
       <section className="statusPage">
         <div className="spinner" />
@@ -535,13 +566,13 @@ function BookingStatus({ token }: { token: string }) {
     );
   }
 
-  if (state.status === "CONFIRMED") {
+  if (confirmed.length === requestIds.length) {
     return (
       <section className="statusPage">
         <div className="statusIcon success">✓</div>
         <h1>예매 완료</h1>
-        {state.show_date && <p className="statusDate">{formatShowDate(state.show_date)}</p>}
-        <p>예매가 정상적으로 처리되었습니다.</p>
+        {confirmed[0]?.show_date && <p className="statusDate">{formatShowDate(confirmed[0].show_date)}</p>}
+        <p>{requestIds.length > 1 ? `${requestIds.length}석 모두 예매가 완료되었습니다.` : "예매가 정상적으로 처리되었습니다."}</p>
         <div className="statusActions">
           <Link className="button primary" to="/mypage">마이페이지에서 확인</Link>
           <Link className="button" to="/">공연 목록으로</Link>
@@ -553,8 +584,9 @@ function BookingStatus({ token }: { token: string }) {
   return (
     <section className="statusPage">
       <div className="statusIcon failure">✗</div>
-      <h1>예매 실패</h1>
-      <p>{failureMsg[state.failure_reason] ?? "알 수 없는 문제로 예매에 실패했습니다."}</p>
+      <h1>{confirmed.length > 0 ? "일부 예매 실패" : "예매 실패"}</h1>
+      {confirmed.length > 0 && <p>{confirmed.length}석은 예매가 완료되었습니다.</p>}
+      <p>{failureMsg[failed[0]?.failure_reason] ?? "알 수 없는 문제로 예매에 실패했습니다."}</p>
       <div className="statusActions">
         <Link className="button primary" to="/">공연 목록으로</Link>
       </div>

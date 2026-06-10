@@ -96,8 +96,10 @@ h2 { font-size: 20px; margin: 0 0 14px; }
 .seat.occupied { background: #e1e5e2 !important; border-color: #c0c9c5 !important; color: #9aa09c !important; }
 .seat.selected { background: #f26f5b !important; color: #fff !important; border-color: #f26f5b !important; }
 
-.summary { margin: 18px 0; display: flex; gap: 12px; align-items: center; min-height: 48px; background: #fff; border: 1px solid #dde3df; border-radius: 8px; padding: 12px 16px; }
-.summaryPrice { font-size: 18px; font-weight: 900; color: #006b5b; margin-left: auto; }
+.summary { margin: 18px 0; display: flex; flex-direction: column; gap: 8px; min-height: 48px; background: #fff; border: 1px solid #dde3df; border-radius: 8px; padding: 12px 16px; justify-content: center; }
+.summaryRow { display: flex; align-items: center; gap: 12px; }
+.summaryTotal { display: flex; align-items: center; border-top: 1px solid #eef0ee; padding-top: 8px; font-weight: 700; font-size: 15px; color: #17201d; }
+.summaryPrice { font-size: 16px; font-weight: 900; color: #006b5b; margin-left: auto; }
 .summaryHint { color: #8c9590; }
 
 /* ── Booking status ── */
