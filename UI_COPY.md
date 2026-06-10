@@ -10,12 +10,18 @@
 
 ## Login
 
-- Page title: `로그인`
-- Kakao-style button: `카카오로 시작하기`
+- Page title: `로그인` (dedicated `/login` page)
+- ID field label: `아이디` / placeholder: `아이디를 입력해 주세요`
+- Password field label: `비밀번호` / placeholder: `비밀번호를 입력해 주세요`
+- Submit button: `로그인`
+- Divider: `또는`
 - Google-style button: `Google로 시작하기`
-- Dev helper text: `데모 로그인을 사용해 예매 흐름을 확인할 수 있습니다.`
+- Demo helper title: `데모 계정으로 체험해 보세요`
+- Demo helper note: `데모 환경에서는 비밀번호 검증 없이 아이디 기준으로 로그인됩니다.`
 - Basic user: `기본 데모 사용자`
 - Rich user: `포인트 많은 데모 사용자`
+- Missing ID error: `아이디를 입력해 주세요.`
+- Missing password error: `비밀번호를 입력해 주세요.`
 
 ## Dashboard
 
