@@ -453,17 +453,10 @@ main { width: min(1200px, calc(100% - 48px)); margin: 32px auto 0; min-height: 6
 .gradeList { list-style: none; margin: 0; padding: 0; }
 .gradeList li { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13.5px; }
 .gradeDot { width: 12px; height: 12px; border-radius: 4px; border: 1px solid transparent; flex-shrink: 0; }
-<<<<<<< HEAD
-.gradeDot.vip { background: #fef08a; border-color: #eab308; }
-.gradeDot.r-grade { background: #fed7aa; border-color: #f97316; }
-.gradeDot.s-grade { background: #bfdbfe; border-color: #3b82f6; }
-.gradeDot.a-grade { background: #e9d5ff; border-color: #a855f7; }
-=======
 .gradeDot.vip { background: #fde047; border-color: #ca8a04; }
 .gradeDot.r-grade { background: #fb923c; border-color: #c2410c; }
 .gradeDot.s-grade { background: #60a5fa; border-color: #1d4ed8; }
 .gradeDot.a-grade { background: #a78bfa; border-color: #6d28d9; }
->>>>>>> 5714632 (feat: update seat color)
 .gradeDot.occupied { background: #eaecef; }
 .gradeName { color: var(--ink-600); }
 .gradePrice { margin-left: auto; font-weight: 600; }
