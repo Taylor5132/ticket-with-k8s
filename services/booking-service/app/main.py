@@ -1,3 +1,5 @@
+import os
+import time
 import uuid
 
 import redis
@@ -11,6 +13,8 @@ from .common import REDIS_URL, STREAM_NAME, current_user, engine, generate_seats
 
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 app = FastAPI(title="booking-service")
+
+QUEUE_ADMISSION_RATE = float(os.getenv("QUEUE_ADMISSION_RATE", "3"))  # users admitted per second
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -96,6 +100,37 @@ def booking_request(request_id: str, user: dict = Depends(current_user)) -> dict
         "booking_id": row["booking_id"],
         "show_date": row["show_date"].isoformat() if row["show_date"] else None,
     }
+
+
+@app.post("/queue/join")
+def queue_join(performance_id: str, show_date: str, user: dict = Depends(current_user)) -> dict:
+    key = f"queue:{performance_id}:{show_date}"
+    r.zadd(key, {user["id"]: time.time()}, nx=True)  # nx=True: don't overwrite existing score
+    r.expire(key, 3600)
+    position = r.zrank(key, user["id"])
+    total = r.zcard(key)
+    return {"position": int(position) + 1, "total": int(total)}
+
+
+@app.get("/queue/status")
+def queue_status(performance_id: str, show_date: str, user: dict = Depends(current_user)) -> dict:
+    key = f"queue:{performance_id}:{show_date}"
+    if r.zscore(key, user["id"]) is None:
+        return {"admitted": True, "position": 0, "total": 0}
+
+    # Advance queue: remove users admitted since the first joiner entered
+    earliest = r.zrange(key, 0, 0, withscores=True)
+    if earliest:
+        elapsed = time.time() - earliest[0][1]
+        admitted_count = int(elapsed * QUEUE_ADMISSION_RATE)
+        if admitted_count > 0:
+            r.zremrangebyrank(key, 0, admitted_count - 1)
+
+    position = r.zrank(key, user["id"])
+    if position is None:
+        return {"admitted": True, "position": 0, "total": 0}
+    total = r.zcard(key)
+    return {"admitted": False, "position": int(position) + 1, "total": int(total)}
 
 
 @app.get("/bookings/me")

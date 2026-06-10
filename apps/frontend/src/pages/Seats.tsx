@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { api } from "../api";
@@ -14,6 +14,23 @@ const GRADE_LEGEND = [
   { grade: "A", label: "A석", price: "60,000원" },
 ];
 
+type QueueState = { position: number; total: number; initial: number } | null;
+
+function QueueWaiting({ position, total, initial }: { position: number; total: number; initial: number }) {
+  const progress = initial > 1 ? Math.min(((initial - position) / (initial - 1)) * 100, 99) : 0;
+  return (
+    <div className="queueWrap">
+      <p className="queueTitle">나의 대기순서</p>
+      <p className="queueNum">{position.toLocaleString()}</p>
+      <div className="queueBar">
+        <div className="queueBarFill" style={{ width: `${progress}%` }} />
+      </div>
+      <p className="queueMsg">현재 접속 인원이 많아 대기중입니다.<br />잠시만 기다려주시면 예매하기 페이지로 연결됩니다.</p>
+      <p className="queueWarn">⚠ 새로고침 하거나 재접속 하시면<br />대기순서가 초기화되어 대기시간이 더 길어집니다.</p>
+    </div>
+  );
+}
+
 export default function Seats() {
   const { id = "" } = useParams();
   const [searchParams] = useSearchParams();
@@ -21,13 +38,55 @@ export default function Seats() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = useAuth();
+
+  const [queue, setQueue] = useState<QueueState>(null);
+  const [queueChecked, setQueueChecked] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [perfTitle, setPerfTitle] = useState("");
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selected, setSelected] = useState<Seat[]>([]);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
 
+  // Step 1: join queue on mount (only when logged in)
   useEffect(() => {
+    if (!showDate || !token) { setQueueChecked(true); return; }
+    api<{ position: number; total: number }>(
+      `/api/queue/join?performance_id=${id}&show_date=${showDate}`,
+      token,
+      { method: "POST" }
+    ).then(({ position, total }) => {
+      if (position > 1) {
+        setQueue({ position, total, initial: position });
+      }
+      setQueueChecked(true);
+    }).catch(() => setQueueChecked(true));
+  }, []);
+
+  // Step 2: poll while in queue
+  useEffect(() => {
+    if (!queue || !token) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await api<{ admitted: boolean; position: number; total: number }>(
+          `/api/queue/status?performance_id=${id}&show_date=${showDate}`,
+          token
+        );
+        if (res.admitted) {
+          clearInterval(pollRef.current!);
+          setQueue(null);
+        } else {
+          setQueue((prev) => prev ? { ...prev, position: res.position, total: res.total } : null);
+        }
+      } catch {}
+    }, 2000);
+    return () => clearInterval(pollRef.current!);
+  }, [queue !== null]);
+
+  // Step 3: load seats once queue is cleared
+  useEffect(() => {
+    if (!queueChecked || queue !== null) return;
     if (!showDate) { setLoading(false); return; }
     Promise.all([
       api<any>(`/api/performances/${id}`),
@@ -36,13 +95,11 @@ export default function Seats() {
       setPerfTitle(perf.title);
       setSeats(seatData.seats);
     }).finally(() => setLoading(false));
-  }, [id, showDate]);
+  }, [queueChecked, queue]);
 
   const rows = useMemo(() => {
     const map: Record<string, Seat[]> = {};
-    for (const s of seats) {
-      (map[s.row] ??= []).push(s);
-    }
+    for (const s of seats) { (map[s.row] ??= []).push(s); }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [seats]);
 
@@ -76,6 +133,10 @@ export default function Seats() {
       </section>
     );
   }
+
+  if (!queueChecked) return <section><h1>좌석 선택</h1><p className="loadingMsg">대기열을 확인하는 중입니다...</p></section>;
+
+  if (queue) return <QueueWaiting position={queue.position} total={queue.total} initial={queue.initial} />;
 
   if (loading) return <section><h1>좌석 선택</h1><p className="loadingMsg">좌석 정보를 불러오는 중입니다...</p></section>;
 

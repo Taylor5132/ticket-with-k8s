@@ -14,6 +14,8 @@ type AuthValue = {
   token: string;
   user: User | null;
   login: (loginId: string) => Promise<void>;
+  localLogin: (loginId: string, password: string) => Promise<void>;
+  signup: (loginId: string, password: string, displayName: string) => Promise<void>;
   /** 반환값이 true면 리다이렉트 없이 이 자리에서 로그인이 끝난 것 (OAuth 비활성 폴백) */
   googleLogin: () => Promise<boolean>;
   logout: () => void;
@@ -67,6 +69,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = (loginId: string) => devLogin("dev", loginId);
 
+  const localLogin = async (loginId: string, password: string) => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login_id: loginId, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.detail?.message ?? "로그인에 실패했습니다.");
+    }
+    const data = await res.json();
+    saveSession(data.access_token, data.user);
+  };
+
+  const signup = async (loginId: string, password: string, displayName: string) => {
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login_id: loginId, password, display_name: displayName }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.detail?.message ?? "회원가입에 실패했습니다.");
+    }
+    const data = await res.json();
+    saveSession(data.access_token, data.user);
+  };
+
   const googleLogin = async () => {
     if (GOOGLE_OAUTH_ENABLED) {
       window.location.href = "/api/auth/google";
@@ -84,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, googleLogin, logout }}>
+    <AuthContext.Provider value={{ token, user, login, localLogin, signup, googleLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );
