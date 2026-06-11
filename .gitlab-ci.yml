@@ -14,6 +14,16 @@ variables:
   before_script:
     - docker login $HARBOR_REGISTRY -u $HARBOR_USER -p $HARBOR_PASSWORD
 
+.manifest_template: &manifest_template
+  stage: update-manifest
+  variables:
+    GIT_SSL_NO_VERIFY: "true"
+  before_script:
+    - git clone https://ci-manifest-token:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
+    - cd manifest
+    - git config user.email "ci@gitlab.local"
+    - git config user.name "GitLab CI"
+
 build-frontend:
   <<: *build_template
   script:
@@ -80,27 +90,98 @@ build-payment:
       when: on_success
     - when: never
 
-update-manifest:
-  stage: update-manifest
-  variables:
-    GIT_SSL_NO_VERIFY: "true"
+update-manifest-frontend:
+  <<: *manifest_template
+  needs: [build-frontend]
   script:
-    - git clone https://ci-manifest-token:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
     - cd manifest
-    - git config user.email "ci@gitlab.local"
-    - git config user.name "GitLab CI"
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/frontend:.*|image: $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA|g" booking/05-frontend.yaml'
-    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/auth-service:.*|image: $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
-    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/event-service:.*|image: $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
-    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/saved-service:.*|image: $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
-    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
-    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/payment-service:.*|image: $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
-    - git commit -m "update image tags to $CI_COMMIT_SHORT_SHA"
+    - git diff --cached --quiet || git commit -m "update frontend to $CI_COMMIT_SHORT_SHA"
+    - git pull --rebase
     - git push
   rules:
     - changes:
-        - apps/**/*
-        - services/**/*
+        - apps/frontend/**/*
+      when: on_success
+    - when: never
+
+update-manifest-auth:
+  <<: *manifest_template
+  needs: [build-auth]
+  script:
+    - cd manifest
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/auth-service:.*|image: $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - git add .
+    - git diff --cached --quiet || git commit -m "update auth-service to $CI_COMMIT_SHORT_SHA"
+    - git pull --rebase
+    - git push
+  rules:
+    - changes:
+        - services/auth-service/**/*
+      when: on_success
+    - when: never
+
+update-manifest-event:
+  <<: *manifest_template
+  needs: [build-event]
+  script:
+    - cd manifest
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/event-service:.*|image: $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - git add .
+    - git diff --cached --quiet || git commit -m "update event-service to $CI_COMMIT_SHORT_SHA"
+    - git pull --rebase
+    - git push
+  rules:
+    - changes:
+        - services/event-service/**/*
+      when: on_success
+    - when: never
+
+update-manifest-saved:
+  <<: *manifest_template
+  needs: [build-saved]
+  script:
+    - cd manifest
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/saved-service:.*|image: $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - git add .
+    - git diff --cached --quiet || git commit -m "update saved-service to $CI_COMMIT_SHORT_SHA"
+    - git pull --rebase
+    - git push
+  rules:
+    - changes:
+        - services/saved-service/**/*
+      when: on_success
+    - when: never
+
+update-manifest-booking:
+  <<: *manifest_template
+  needs: [build-booking]
+  script:
+    - cd manifest
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - git add .
+    - git diff --cached --quiet || git commit -m "update booking-api to $CI_COMMIT_SHORT_SHA"
+    - git pull --rebase
+    - git push
+  rules:
+    - changes:
+        - services/booking-service/**/*
+      when: on_success
+    - when: never
+
+update-manifest-payment:
+  <<: *manifest_template
+  needs: [build-payment]
+  script:
+    - cd manifest
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/payment-service:.*|image: $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - git add .
+    - git diff --cached --quiet || git commit -m "update payment-service to $CI_COMMIT_SHORT_SHA"
+    - git pull --rebase
+    - git push
+  rules:
+    - changes:
+        - services/payment-service/**/*
       when: on_success
     - when: never
