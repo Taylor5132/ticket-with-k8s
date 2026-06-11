@@ -46,7 +46,7 @@ export default function App() {
       </main>
       <footer className="siteFooter">
         <div className="siteFooterInner">
-          <strong>티켓랩cicdtest</strong>
+          <strong>티켓랩team6</strong>
           <span>Kubernetes 마이크로서비스 팀 프로젝트 데모입니다. 실제 예매 및 결제가 이루어지지 않습니다.</span>
           <span>공연 정보 출처: KOPIS 공연예술통합전산망</span>
         </div>
