@@ -27,7 +27,7 @@ build-frontend:
     - docker push $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
-        - apps/frontend/**
+        - apps/frontend/**/*
       when: on_success
     - when: never
 
@@ -38,7 +38,7 @@ build-auth:
     - docker push $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
-        - services/auth-service/**
+        - services/auth-service/**/*
       when: on_success
     - when: never
 
@@ -49,7 +49,7 @@ build-event:
     - docker push $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
-        - services/event-service/**
+        - services/event-service/**/*
       when: on_success
     - when: never
 
@@ -60,7 +60,7 @@ build-saved:
     - docker push $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
-        - services/saved-service/**
+        - services/saved-service/**/*
       when: on_success
     - when: never
 
@@ -71,7 +71,7 @@ build-booking:
     - docker push $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
-        - services/booking-service/**
+        - services/booking-service/**/*
       when: on_success
     - when: never
 
@@ -82,7 +82,7 @@ build-payment:
     - docker push $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
-        - services/payment-service/**
+        - services/payment-service/**/*
       when: on_success
     - when: never
 
@@ -106,7 +106,7 @@ update-manifest:
     - git push
   rules:
     - changes:
-        - apps/**
-        - services/**
+        - apps/**/*
+        - services/**/*
       when: on_success
     - when: never
