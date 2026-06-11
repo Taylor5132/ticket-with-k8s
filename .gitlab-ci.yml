@@ -94,7 +94,6 @@ update-manifest-frontend:
   <<: *manifest_template
   needs: [build-frontend]
   script:
-    - cd manifest
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/frontend:.*|image: $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA|g" booking/05-frontend.yaml'
     - git add .
     - git diff --cached --quiet || git commit -m "update frontend to $CI_COMMIT_SHORT_SHA"
@@ -110,7 +109,6 @@ update-manifest-auth:
   <<: *manifest_template
   needs: [build-auth]
   script:
-    - cd manifest
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/auth-service:.*|image: $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
     - git diff --cached --quiet || git commit -m "update auth-service to $CI_COMMIT_SHORT_SHA"
@@ -126,7 +124,6 @@ update-manifest-event:
   <<: *manifest_template
   needs: [build-event]
   script:
-    - cd manifest
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/event-service:.*|image: $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
     - git diff --cached --quiet || git commit -m "update event-service to $CI_COMMIT_SHORT_SHA"
@@ -142,7 +139,6 @@ update-manifest-saved:
   <<: *manifest_template
   needs: [build-saved]
   script:
-    - cd manifest
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/saved-service:.*|image: $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
     - git diff --cached --quiet || git commit -m "update saved-service to $CI_COMMIT_SHORT_SHA"
@@ -158,7 +154,6 @@ update-manifest-booking:
   <<: *manifest_template
   needs: [build-booking]
   script:
-    - cd manifest
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
     - git diff --cached --quiet || git commit -m "update booking-api to $CI_COMMIT_SHORT_SHA"
@@ -174,7 +169,6 @@ update-manifest-payment:
   <<: *manifest_template
   needs: [build-payment]
   script:
-    - cd manifest
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/payment-service:.*|image: $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
     - git diff --cached --quiet || git commit -m "update payment-service to $CI_COMMIT_SHORT_SHA"
