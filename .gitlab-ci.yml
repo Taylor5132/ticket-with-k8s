@@ -66,6 +66,8 @@ build-payment:
 
 update-manifest:
   stage: update-manifest
+  variables:
+    GIT_SSL_NO_VERIFY: "true"
   script:
     - git clone https://ci-manifest-token:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
     - cd manifest
