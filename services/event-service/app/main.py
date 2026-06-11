@@ -119,7 +119,6 @@ def performances(
         JOIN venues v ON v.id = p.venue_id
         {where}
         ORDER BY p.start_date ASC, p.id ASC
-        LIMIT 100
     """
     with engine.begin() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
