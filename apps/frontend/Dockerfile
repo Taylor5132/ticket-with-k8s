@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim
+FROM 192.168.0.237/booking_ticket/node:22-bookworm-slim
 
 WORKDIR /app
 COPY package.json ./
