@@ -106,7 +106,7 @@ export default function Dashboard() {
         </aside>
 
         <div className="dashboardMain">
-          <PosterRow title="오픈 예정" items={upcoming} getBadge={(i) => `D-${dDay(i.start_date)}`} />
+          <PosterRow title="오픈 예정test" items={upcoming} getBadge={(i) => `D-${dDay(i.start_date)}`} />
           <GridSection
             title={activeLabels ? `${activeLabels} 공연` : "전체 공연"}
             count={filtered.length}
