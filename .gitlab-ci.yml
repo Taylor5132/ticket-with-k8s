@@ -3,17 +3,11 @@ workflow:
     - when: always
 
 stages:
-  - check
   - build
   - update-manifest
 
 variables:
   HARBOR_REGISTRY: 192.168.0.237
-
-pipeline-trigger:
-  stage: check
-  script:
-    - echo "Pipeline triggered for $CI_COMMIT_SHORT_SHA"
 
 .build_template: &build_template
   stage: build
