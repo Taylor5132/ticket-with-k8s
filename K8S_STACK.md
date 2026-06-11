@@ -520,3 +520,5 @@ Internet
   k6 → 192.168.0.16 (lb-01) → Istio Gateway
   (separate from cluster to avoid polluting measurement)
 ```
+
+<!-- mirror test 2026-06-11T07:33:38Z -->
