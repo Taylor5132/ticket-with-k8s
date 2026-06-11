@@ -71,12 +71,12 @@ update-manifest:
     - cd manifest
     - git config user.email "ci@gitlab.local"
     - git config user.name "GitLab CI"
-    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/frontend:.*|image: $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA|g" booking/05-frontend.yaml
-    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/auth-service:.*|image: $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
-    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/event-service:.*|image: $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
-    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/saved-service:.*|image: $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
-    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
-    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/payment-service:.*|image: $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/frontend:.*|image: $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA|g" booking/05-frontend.yaml'
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/auth-service:.*|image: $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/event-service:.*|image: $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/saved-service:.*|image: $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/payment-service:.*|image: $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
     - git commit -m "update image tags to $CI_COMMIT_SHORT_SHA"
     - git push
