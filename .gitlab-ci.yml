@@ -3,11 +3,17 @@ workflow:
     - when: always
 
 stages:
+  - check
   - build
   - update-manifest
 
 variables:
   HARBOR_REGISTRY: 192.168.0.237
+
+pipeline-trigger:
+  stage: check
+  script:
+    - echo "Pipeline triggered for $CI_COMMIT_SHORT_SHA"
 
 .build_template: &build_template
   stage: build
@@ -19,36 +25,66 @@ build-frontend:
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA ./apps/frontend
     - docker push $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - apps/frontend/**
+      when: on_success
+    - when: never
 
 build-auth:
   <<: *build_template
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA ./services/auth-service
     - docker push $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/auth-service/**
+      when: on_success
+    - when: never
 
 build-event:
   <<: *build_template
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA ./services/event-service
     - docker push $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/event-service/**
+      when: on_success
+    - when: never
 
 build-saved:
   <<: *build_template
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA ./services/saved-service
     - docker push $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/saved-service/**
+      when: on_success
+    - when: never
 
 build-booking:
   <<: *build_template
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA ./services/booking-service
     - docker push $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/booking-service/**
+      when: on_success
+    - when: never
 
 build-payment:
   <<: *build_template
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA ./services/payment-service
     - docker push $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/payment-service/**
+      when: on_success
+    - when: never
 
 update-manifest:
   stage: update-manifest
@@ -68,3 +104,9 @@ update-manifest:
     - git add .
     - git commit -m "update image tags to $CI_COMMIT_SHORT_SHA"
     - git push
+  rules:
+    - changes:
+        - apps/**
+        - services/**
+      when: on_success
+    - when: never
