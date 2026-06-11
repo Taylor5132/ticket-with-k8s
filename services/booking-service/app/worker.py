@@ -141,6 +141,7 @@ def process(fields: dict) -> None:
 
 
 def main() -> None:
+    from app.telemetry import configure_tracing; configure_tracing(service_name="booking-worker")
     ensure_group()
     while True:
         try:

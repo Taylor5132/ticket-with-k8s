@@ -14,6 +14,7 @@ JWT_ALGORITHM = "HS256"
 
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 app = FastAPI(title="saved-service")
+from app.telemetry import configure_tracing; configure_tracing(app, "saved-service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 

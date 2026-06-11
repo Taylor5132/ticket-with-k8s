@@ -16,6 +16,7 @@ JWT_ALGORITHM = "HS256"
 
 engine: Engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 app = FastAPI(title="payment-service")
+from app.telemetry import configure_tracing; configure_tracing(app, "payment-service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
