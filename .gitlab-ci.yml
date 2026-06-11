@@ -1,6 +1,86 @@
+stages:
+  - build
+  - update-manifest
+
+variables:
+  HARBOR_REGISTRY: 192.168.0.237
+
+.build_template: &build_template
+  stage: build
+  before_script:
+    - docker login $HARBOR_REGISTRY -u $HARBOR_USER -p $HARBOR_PASSWORD
+
+build-frontend:
+  <<: *build_template
+  script:
+    - docker build -t $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA ./apps/frontend
+    - docker push $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - apps/frontend/**
+
+build-auth:
+  <<: *build_template
+  script:
+    - docker build -t $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA ./services/auth-service
+    - docker push $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/auth-service/**
+
+build-event:
+  <<: *build_template
+  script:
+    - docker build -t $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA ./services/event-service
+    - docker push $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/event-service/**
+
+build-saved:
+  <<: *build_template
+  script:
+    - docker build -t $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA ./services/saved-service
+    - docker push $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/saved-service/**
+
+build-booking:
+  <<: *build_template
+  script:
+    - docker build -t $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA ./services/booking-service
+    - docker push $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/booking-service/**
+
+build-payment:
+  <<: *build_template
+  script:
+    - docker build -t $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA ./services/payment-service
+    - docker push $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/payment-service/**
+
 update-manifest:
+  stage: update-manifest
   script:
     - git clone https://ci-manifest-token:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
     - cd manifest
-    - # image tag 수정
+    - git config user.email "ci@gitlab.local"
+    - git config user.name "GitLab CI"
+    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/frontend:.*|image: $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA|g" booking/05-frontend.yaml
+    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/auth-service:.*|image: $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
+    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/event-service:.*|image: $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
+    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/saved-service:.*|image: $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
+    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
+    - sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/payment-service:.*|image: $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
+    - git add .
+    - git commit -m "update image tags to $CI_COMMIT_SHORT_SHA"
     - git push
+  rules:
+    - changes:
+        - apps/**
+        - services/**
