@@ -101,7 +101,7 @@ scan-frontend:
   <<: *scan_template
   needs: [build-frontend]
   script:
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress --ignorefile .trivyignore
         --insecure $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
@@ -113,7 +113,7 @@ scan-auth:
   <<: *scan_template
   needs: [build-auth]
   script:
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress --ignorefile .trivyignore
         --insecure $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
@@ -125,7 +125,7 @@ scan-event:
   <<: *scan_template
   needs: [build-event]
   script:
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress --ignorefile .trivyignore
         --insecure $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
@@ -137,7 +137,7 @@ scan-saved:
   <<: *scan_template
   needs: [build-saved]
   script:
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress --ignorefile .trivyignore
         --insecure $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
@@ -149,8 +149,10 @@ scan-booking:
   <<: *scan_template
   needs: [build-booking]
   script:
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress --ignorefile .trivyignore
         --insecure $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress --ignorefile .trivyignore
+        --insecure $HARBOR_REGISTRY/booking_ticket/booking-worker:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
         - services/booking-service/**/*
@@ -161,7 +163,7 @@ scan-payment:
   <<: *scan_template
   needs: [build-payment]
   script:
-    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress --ignorefile .trivyignore
         --insecure $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
