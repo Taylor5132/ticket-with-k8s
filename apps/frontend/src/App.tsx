@@ -15,7 +15,7 @@ export default function App() {
     <>
       <header className="topbar">
         <div className="topbarInner">
-          <Link to="/" className="brand"><Ticket size={22} /> 티켓랩123</Link>
+          <Link to="/" className="brand"><Ticket size={22} /> 티켓랩test</Link>
           <nav>
             <NavLink to="/" end>공연</NavLink>
           </nav>
