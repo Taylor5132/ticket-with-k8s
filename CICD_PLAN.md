@@ -64,12 +64,13 @@ GitLab Runner (Shell, 192.168.0.237)
 [CI 단계]
 1. 변경된 서비스만 이미지 빌드 (rules: changes 사용)
 2. 이미지 Harbor push (192.168.0.237)
-3. manifest 레포 image tag 업데이트
+3. 해당 서비스의 manifest 레포 image tag만 업데이트
+    ↓
+[Webhook]
+GitLab manifest 레포 → ArgoCD /api/webhook (즉시 감지)
     ↓
 [CD 단계]
 ArgoCD (K8s Worker 노드 파드)
-    ↓
-manifest 레포 변경 감지
     ↓
 K8s 클러스터에 자동 배포
 ```
@@ -77,6 +78,10 @@ K8s 클러스터에 자동 배포
 ### .gitlab-ci.yml 구조
 
 ```yaml
+workflow:
+  rules:
+    - when: always
+
 stages:
   - build
   - update-manifest
@@ -89,6 +94,17 @@ variables:
   before_script:
     - docker login $HARBOR_REGISTRY -u $HARBOR_USER -p $HARBOR_PASSWORD
 
+.manifest_template: &manifest_template
+  stage: update-manifest
+  variables:
+    GIT_SSL_NO_VERIFY: "true"
+  before_script:
+    - git clone https://ci-manifest-token:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
+    - cd manifest
+    - git config user.email "ci@gitlab.local"
+    - git config user.name "GitLab CI"
+
+# build 잡: 변경된 서비스만 빌드 (rules: changes - /**/* 패턴 필수)
 build-frontend:
   <<: *build_template
   script:
@@ -96,72 +112,36 @@ build-frontend:
     - docker push $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
-        - apps/frontend/**
+        - apps/frontend/**/*
+      when: on_success
+    - when: never
 
-build-auth:
-  <<: *build_template
-  script:
-    - docker build -t $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA ./services/auth-service
-    - docker push $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA
-  rules:
-    - changes:
-        - services/auth-service/**
+# ... (build-auth, build-event, build-saved, build-booking, build-payment 동일 패턴)
 
-build-event:
-  <<: *build_template
+# update-manifest 잡: 서비스별로 분리 → 변경된 서비스 태그만 업데이트
+update-manifest-frontend:
+  <<: *manifest_template
+  needs: [build-frontend]
   script:
-    - docker build -t $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA ./services/event-service
-    - docker push $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA
-  rules:
-    - changes:
-        - services/event-service/**
-
-build-saved:
-  <<: *build_template
-  script:
-    - docker build -t $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA ./services/saved-service
-    - docker push $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA
-  rules:
-    - changes:
-        - services/saved-service/**
-
-build-booking:
-  <<: *build_template
-  script:
-    - docker build -t $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA ./services/booking-service
-    - docker push $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA
-  rules:
-    - changes:
-        - services/booking-service/**
-
-build-payment:
-  <<: *build_template
-  script:
-    - docker build -t $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA ./services/payment-service
-    - docker push $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA
-  rules:
-    - changes:
-        - services/payment-service/**
-
-update-manifest:
-  stage: update-manifest
-  script:
-    - git clone https://ci-manifest-token:$MANIFEST_TOKEN@192.168.0.237:8443/team6/manifest.git
-    - cd manifest
-    - git config user.email "ci@gitlab.local"
-    - git config user.name "GitLab CI"
-    - |
-      for service in frontend auth-service event-service saved-service booking-api booking-worker payment-service; do
-        sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/$service:.*|image: $HARBOR_REGISTRY/booking_ticket/$service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml
-      done
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/frontend:.*|image: $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA|g" booking/05-frontend.yaml'
     - git add .
-    - git commit -m "update image tags to $CI_COMMIT_SHORT_SHA"
+    - git diff --cached --quiet || git commit -m "update frontend to $CI_COMMIT_SHORT_SHA"
+    - git pull --rebase
     - git push
   rules:
     - changes:
-        - apps/**
-        - services/**
+        - apps/frontend/**/*
+      when: on_success
+    - when: never
+
+# ... (update-manifest-auth, event, saved, booking, payment 동일 패턴)
 ```
+
+**핵심 설계 결정:**
+- `rules: changes`에 `/**/*` 패턴 사용 (GitLab에서 서브디렉토리 파일 감지에 필수)
+- update-manifest를 서비스별로 분리 → 빌드된 서비스 태그만 업데이트 (미빌드 서비스 태그 변경 방지)
+- `needs: [build-xxx]` → 빌드 성공 후에만 manifest 업데이트 실행
+- `git pull --rebase` → 여러 서비스 동시 업데이트 시 충돌 방지
 
 ### CI Variables (app-repo → Settings → CI/CD → Variables)
 
@@ -191,8 +171,8 @@ update-manifest:
 - [x] ArgoCD 설치 (K8s 클러스터, argocd 네임스페이스)
 - [x] ArgoCD manifest 레포 연결 (HTTPS)
 - [x] ArgoCD Application 생성 (ticket-app, booking/)
-- [ ] .gitlab-ci.yml 작성 후 app-repo push
-- [ ] 파이프라인 동작 확인
+- [x] .gitlab-ci.yml 작성 및 동작 확인
+- [x] GitLab Webhook → ArgoCD 연동 (manifest push 즉시 sync)
 
 ### 2단계: 보안 스캔 추가
 
@@ -210,6 +190,7 @@ update-manifest:
 | Executor | Shell |
 | 이름 | team6-shell-runner |
 | 범위 | Instance runner (전체 레포 공유) |
+| TLS 설정 | tls-ca-file = /etc/harbor/certs/harbor.crt |
 
 ### Shell executor 선택 이유
 
@@ -261,6 +242,13 @@ kubectl apply -n argocd -f \
 | Path | booking |
 | Cluster URL | https://kubernetes.default.svc |
 
+### ArgoCD NodePort
+
+| 프로토콜 | NodePort |
+|---------|----------|
+| HTTP | 32489 |
+| HTTPS | 31386 |
+
 ### ArgoCD 접근
 
 ```bash
@@ -272,6 +260,22 @@ kubectl patch svc argocd-server -n argocd \
 kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 -d
 ```
+
+---
+
+## GitLab Webhook → ArgoCD 연동
+
+manifest 레포 push 시 ArgoCD가 즉시 sync하도록 Webhook 설정.
+
+| 항목 | 값 |
+|------|-----|
+| Webhook URL | http://192.168.0.23:32489/api/webhook |
+| Trigger | Push events |
+| SSL verification | 비활성화 |
+
+**GitLab 관리자 설정 필수:**
+Admin Area → Settings → Network → Outbound requests
+→ "Allow requests to the local network from webhooks and integrations" 체크
 
 ---
 
