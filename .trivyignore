@@ -1,3 +1,6 @@
+# Alpine OpenSSL - 업스트림 패치 적용 시 제거
+CVE-2026-45447
+
 # esbuild 바이너리 내부 Go stdlib CVE
 # esbuild는 빌드 도구로 실제 서비스 공격 표면이 아님
 # vite 메이저 업그레이드 시 재검토 필요
