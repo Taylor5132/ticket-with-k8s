@@ -159,3 +159,4 @@ def my_bookings(user: dict = Depends(current_user)) -> dict:
             for row in rows
         ]
     }
+
