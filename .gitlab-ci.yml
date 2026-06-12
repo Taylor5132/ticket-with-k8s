@@ -18,6 +18,8 @@ variables:
 
 .sonar_template: &sonar_template
   stage: code-quality
+  variables:
+    GIT_DEPTH: "0"
   before_script:
     - docker login $HARBOR_REGISTRY -u $HARBOR_USER -p $HARBOR_PASSWORD
 
