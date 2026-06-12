@@ -4,6 +4,7 @@ workflow:
 
 stages:
   - build
+  - scan
   - update-manifest
 
 variables:
@@ -13,6 +14,10 @@ variables:
   stage: build
   before_script:
     - docker login $HARBOR_REGISTRY -u $HARBOR_USER -p $HARBOR_PASSWORD
+
+.scan_template: &scan_template
+  stage: scan
+  allow_failure: true
 
 .manifest_template: &manifest_template
   stage: update-manifest
@@ -92,9 +97,81 @@ build-payment:
       when: on_success
     - when: never
 
+scan-frontend:
+  <<: *scan_template
+  needs: [build-frontend]
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+        --insecure $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - apps/frontend/**/*
+      when: on_success
+    - when: never
+
+scan-auth:
+  <<: *scan_template
+  needs: [build-auth]
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+        --insecure $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/auth-service/**/*
+      when: on_success
+    - when: never
+
+scan-event:
+  <<: *scan_template
+  needs: [build-event]
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+        --insecure $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/event-service/**/*
+      when: on_success
+    - when: never
+
+scan-saved:
+  <<: *scan_template
+  needs: [build-saved]
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+        --insecure $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/saved-service/**/*
+      when: on_success
+    - when: never
+
+scan-booking:
+  <<: *scan_template
+  needs: [build-booking]
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+        --insecure $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/booking-service/**/*
+      when: on_success
+    - when: never
+
+scan-payment:
+  <<: *scan_template
+  needs: [build-payment]
+  script:
+    - trivy image --exit-code 1 --severity HIGH,CRITICAL --no-progress
+        --insecure $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA
+  rules:
+    - changes:
+        - services/payment-service/**/*
+      when: on_success
+    - when: never
+
 update-manifest-frontend:
   <<: *manifest_template
-  needs: [build-frontend]
+  needs: [scan-frontend]
   script:
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/frontend:.*|image: $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA|g" booking/05-frontend.yaml'
     - git add .
@@ -109,7 +186,7 @@ update-manifest-frontend:
 
 update-manifest-auth:
   <<: *manifest_template
-  needs: [build-auth]
+  needs: [scan-auth]
   script:
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/auth-service:.*|image: $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
@@ -124,7 +201,7 @@ update-manifest-auth:
 
 update-manifest-event:
   <<: *manifest_template
-  needs: [build-event]
+  needs: [scan-event]
   script:
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/event-service:.*|image: $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
@@ -139,7 +216,7 @@ update-manifest-event:
 
 update-manifest-saved:
   <<: *manifest_template
-  needs: [build-saved]
+  needs: [scan-saved]
   script:
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/saved-service:.*|image: $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
@@ -154,7 +231,7 @@ update-manifest-saved:
 
 update-manifest-booking:
   <<: *manifest_template
-  needs: [build-booking]
+  needs: [scan-booking]
   script:
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-worker:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-worker:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
@@ -170,7 +247,7 @@ update-manifest-booking:
 
 update-manifest-payment:
   <<: *manifest_template
-  needs: [build-payment]
+  needs: [scan-payment]
   script:
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/payment-service:.*|image: $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
