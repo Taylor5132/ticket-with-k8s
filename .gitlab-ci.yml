@@ -18,6 +18,8 @@ variables:
 
 .sonar_template: &sonar_template
   stage: code-quality
+  before_script:
+    - docker login $HARBOR_REGISTRY -u $HARBOR_USER -p $HARBOR_PASSWORD
 
 .scan_template: &scan_template
   stage: scan
@@ -44,7 +46,7 @@ sonar-frontend:
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
         -e SONAR_TOKEN=$SONAR_TOKEN_FRONTEND
-        sonarsource/sonar-scanner-cli
+        $HARBOR_REGISTRY/booking_ticket/sonar-scanner-cli:latest
         -Dsonar.projectKey=frontend
         -Dsonar.sources=apps/frontend/src
   rules:
@@ -60,7 +62,7 @@ sonar-auth:
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
         -e SONAR_TOKEN=$SONAR_TOKEN_AUTH
-        sonarsource/sonar-scanner-cli
+        $HARBOR_REGISTRY/booking_ticket/sonar-scanner-cli:latest
         -Dsonar.projectKey=auth-service
         -Dsonar.sources=services/auth-service/app
         -Dsonar.python.version=3
@@ -77,7 +79,7 @@ sonar-event:
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
         -e SONAR_TOKEN=$SONAR_TOKEN_EVENT
-        sonarsource/sonar-scanner-cli
+        $HARBOR_REGISTRY/booking_ticket/sonar-scanner-cli:latest
         -Dsonar.projectKey=event-service
         -Dsonar.sources=services/event-service/app
         -Dsonar.python.version=3
@@ -94,7 +96,7 @@ sonar-saved:
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
         -e SONAR_TOKEN=$SONAR_TOKEN_SAVED
-        sonarsource/sonar-scanner-cli
+        $HARBOR_REGISTRY/booking_ticket/sonar-scanner-cli:latest
         -Dsonar.projectKey=saved-service
         -Dsonar.sources=services/saved-service/app
         -Dsonar.python.version=3
@@ -111,7 +113,7 @@ sonar-booking:
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
         -e SONAR_TOKEN=$SONAR_TOKEN_BOOKING
-        sonarsource/sonar-scanner-cli
+        $HARBOR_REGISTRY/booking_ticket/sonar-scanner-cli:latest
         -Dsonar.projectKey=booking-service
         -Dsonar.sources=services/booking-service/app
         -Dsonar.python.version=3
@@ -128,7 +130,7 @@ sonar-payment:
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
         -e SONAR_TOKEN=$SONAR_TOKEN_PAYMENT
-        sonarsource/sonar-scanner-cli
+        $HARBOR_REGISTRY/booking_ticket/sonar-scanner-cli:latest
         -Dsonar.projectKey=payment-service
         -Dsonar.sources=services/payment-service/app
         -Dsonar.python.version=3
