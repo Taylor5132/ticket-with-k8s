@@ -3,6 +3,7 @@ workflow:
     - when: always
 
 stages:
+  - code-quality
   - build
   - scan
   - update-manifest
@@ -14,6 +15,9 @@ variables:
   stage: build
   before_script:
     - docker login $HARBOR_REGISTRY -u $HARBOR_USER -p $HARBOR_PASSWORD
+
+.sonar_template: &sonar_template
+  stage: code-quality
 
 .scan_template: &scan_template
   stage: scan
@@ -29,8 +33,118 @@ variables:
     - git config user.email "ci@gitlab.local"
     - git config user.name "GitLab CI"
 
+# =====================================================================
+# code-quality stage
+# =====================================================================
+
+sonar-frontend:
+  <<: *sonar_template
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/usr/src
+        -e SONAR_HOST_URL=$SONAR_HOST_URL
+        -e SONAR_TOKEN=$SONAR_TOKEN_FRONTEND
+        sonarsource/sonar-scanner-cli
+        -Dsonar.projectKey=frontend
+        -Dsonar.sources=apps/frontend/src
+  rules:
+    - changes:
+        - apps/frontend/**/*
+      when: on_success
+    - when: never
+
+sonar-auth:
+  <<: *sonar_template
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/usr/src
+        -e SONAR_HOST_URL=$SONAR_HOST_URL
+        -e SONAR_TOKEN=$SONAR_TOKEN_AUTH
+        sonarsource/sonar-scanner-cli
+        -Dsonar.projectKey=auth-service
+        -Dsonar.sources=services/auth-service/app
+        -Dsonar.python.version=3
+  rules:
+    - changes:
+        - services/auth-service/**/*
+      when: on_success
+    - when: never
+
+sonar-event:
+  <<: *sonar_template
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/usr/src
+        -e SONAR_HOST_URL=$SONAR_HOST_URL
+        -e SONAR_TOKEN=$SONAR_TOKEN_EVENT
+        sonarsource/sonar-scanner-cli
+        -Dsonar.projectKey=event-service
+        -Dsonar.sources=services/event-service/app
+        -Dsonar.python.version=3
+  rules:
+    - changes:
+        - services/event-service/**/*
+      when: on_success
+    - when: never
+
+sonar-saved:
+  <<: *sonar_template
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/usr/src
+        -e SONAR_HOST_URL=$SONAR_HOST_URL
+        -e SONAR_TOKEN=$SONAR_TOKEN_SAVED
+        sonarsource/sonar-scanner-cli
+        -Dsonar.projectKey=saved-service
+        -Dsonar.sources=services/saved-service/app
+        -Dsonar.python.version=3
+  rules:
+    - changes:
+        - services/saved-service/**/*
+      when: on_success
+    - when: never
+
+sonar-booking:
+  <<: *sonar_template
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/usr/src
+        -e SONAR_HOST_URL=$SONAR_HOST_URL
+        -e SONAR_TOKEN=$SONAR_TOKEN_BOOKING
+        sonarsource/sonar-scanner-cli
+        -Dsonar.projectKey=booking-service
+        -Dsonar.sources=services/booking-service/app
+        -Dsonar.python.version=3
+  rules:
+    - changes:
+        - services/booking-service/**/*
+      when: on_success
+    - when: never
+
+sonar-payment:
+  <<: *sonar_template
+  script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/usr/src
+        -e SONAR_HOST_URL=$SONAR_HOST_URL
+        -e SONAR_TOKEN=$SONAR_TOKEN_PAYMENT
+        sonarsource/sonar-scanner-cli
+        -Dsonar.projectKey=payment-service
+        -Dsonar.sources=services/payment-service/app
+        -Dsonar.python.version=3
+  rules:
+    - changes:
+        - services/payment-service/**/*
+      when: on_success
+    - when: never
+
+# =====================================================================
+# build stage
+# =====================================================================
+
 build-frontend:
   <<: *build_template
+  needs: [sonar-frontend]
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA ./apps/frontend
     - docker push $HARBOR_REGISTRY/booking_ticket/frontend:$CI_COMMIT_SHORT_SHA
@@ -42,6 +156,7 @@ build-frontend:
 
 build-auth:
   <<: *build_template
+  needs: [sonar-auth]
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA ./services/auth-service
     - docker push $HARBOR_REGISTRY/booking_ticket/auth-service:$CI_COMMIT_SHORT_SHA
@@ -53,6 +168,7 @@ build-auth:
 
 build-event:
   <<: *build_template
+  needs: [sonar-event]
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA ./services/event-service
     - docker push $HARBOR_REGISTRY/booking_ticket/event-service:$CI_COMMIT_SHORT_SHA
@@ -64,6 +180,7 @@ build-event:
 
 build-saved:
   <<: *build_template
+  needs: [sonar-saved]
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA ./services/saved-service
     - docker push $HARBOR_REGISTRY/booking_ticket/saved-service:$CI_COMMIT_SHORT_SHA
@@ -75,6 +192,7 @@ build-saved:
 
 build-booking:
   <<: *build_template
+  needs: [sonar-booking]
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA ./services/booking-service
     - docker tag $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA $HARBOR_REGISTRY/booking_ticket/booking-worker:$CI_COMMIT_SHORT_SHA
@@ -88,6 +206,7 @@ build-booking:
 
 build-payment:
   <<: *build_template
+  needs: [sonar-payment]
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA ./services/payment-service
     - docker push $HARBOR_REGISTRY/booking_ticket/payment-service:$CI_COMMIT_SHORT_SHA
@@ -96,6 +215,10 @@ build-payment:
         - services/payment-service/**/*
       when: on_success
     - when: never
+
+# =====================================================================
+# scan stage (Trivy)
+# =====================================================================
 
 scan-frontend:
   <<: *scan_template
@@ -170,6 +293,10 @@ scan-payment:
         - services/payment-service/**/*
       when: on_success
     - when: never
+
+# =====================================================================
+# update-manifest stage
+# =====================================================================
 
 update-manifest-frontend:
   <<: *manifest_template
