@@ -12,11 +12,14 @@ CREATE TABLE users (
   provider TEXT NOT NULL,
   login_id TEXT NOT NULL,
   display_name TEXT NOT NULL,
+  password_hash TEXT,            -- 로컬 계정용 (auth-service가 기동 시 ALTER TABLE로 추가)
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (provider, login_id)
 );
 ```
+
+비고: `password_hash`는 init SQL이 아니라 auth-service 시작 시 런타임 마이그레이션으로 추가된다 (provider `local` 회원가입 도입에 따른 변경).
 
 ## `event_db`
 
@@ -84,6 +87,7 @@ CREATE TABLE booking_requests (
   user_id TEXT NOT NULL,
   performance_id TEXT NOT NULL,
   seat_id TEXT NOT NULL,
+  show_date DATE NOT NULL,       -- 날짜별 예매 도입으로 추가
   status TEXT NOT NULL,
   failure_reason TEXT,
   booking_id TEXT,
@@ -121,7 +125,7 @@ CREATE TABLE bookings (
   seat_grade TEXT NOT NULL,
   paid_amount INTEGER NOT NULL,
   booked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (performance_id, seat_id)
+  UNIQUE (performance_id, performance_date, seat_id)  -- 날짜별 예매: 같은 좌석도 날짜가 다르면 예매 가능
 );
 ```
 
@@ -214,5 +218,22 @@ Message fields:
 booking_request_id
 performance_id
 seat_id
+show_date
 user_id
 ```
+
+### Waiting Queue (대기열)
+
+Key:
+
+```text
+queue:{performance_id}:{show_date}
+```
+
+Type / TTL:
+
+```text
+Sorted Set (score = 진입 시각) / 3600초
+```
+
+booking-api의 `/queue/join`·`/queue/status`가 사용. `QUEUE_ADMISSION_RATE`(기본 3명/초)만큼 선두부터 제거하며 입장 처리한다.

@@ -84,6 +84,7 @@ workflow:
 
 stages:
   - build
+  - scan          # 2026-06 추가: Trivy 이미지 스캔 (HIGH/CRITICAL, allow_failure: true)
   - update-manifest
 
 variables:
@@ -140,7 +141,7 @@ update-manifest-frontend:
 **핵심 설계 결정:**
 - `rules: changes`에 `/**/*` 패턴 사용 (GitLab에서 서브디렉토리 파일 감지에 필수)
 - update-manifest를 서비스별로 분리 → 빌드된 서비스 태그만 업데이트 (미빌드 서비스 태그 변경 방지)
-- `needs: [build-xxx]` → 빌드 성공 후에만 manifest 업데이트 실행
+- `needs: [build-xxx]` → 빌드 성공 후에만 manifest 업데이트 실행 (Trivy 도입 후 실제로는 scan 잡을 거쳐 연결됨 — `.gitlab-ci.yml` 참조)
 - `git pull --rebase` → 여러 서비스 동시 업데이트 시 충돌 방지
 
 ### CI Variables (app-repo → Settings → CI/CD → Variables)
@@ -176,7 +177,7 @@ update-manifest-frontend:
 
 ### 2단계: 보안 스캔 추가
 
-- [ ] Trivy 연동 (.gitlab-ci.yml에 scan stage 추가)
+- [x] Trivy 연동 (.gitlab-ci.yml에 scan stage 추가 — 서비스별 `trivy image --severity HIGH,CRITICAL`, 예외는 `.trivyignore`로 관리, `allow_failure: true` 정책)
 - [ ] SonarQube CE 설치 (Harbor 노드)
 - [ ] SonarQube 연동
 
@@ -222,6 +223,8 @@ update-manifest-frontend:
 | argocd-application-controller | StatefulSet | Git vs 클러스터 상태 비교 |
 | argocd-dex-server | Deployment | 인증 |
 | argocd-redis | Deployment | 내부 캐시 |
+| argocd-applicationset-controller | Deployment | ApplicationSet 관리 (실설치에 포함 — 총 7파드) |
+| argocd-notifications-controller | Deployment | 알림 (실설치에 포함) |
 
 ### 설치 명령어
 
@@ -241,6 +244,8 @@ kubectl apply -n argocd -f \
 | Repository URL | https://192.168.0.237:8443/team6/manifest.git |
 | Path | booking |
 | Cluster URL | https://kubernetes.default.svc |
+
+> ⚠ **2026-06-12 참고**: 클러스터는 booking NS에서 frontend/backend/db NS 구조로 이전 중이다. 이전이 완료되면 CI의 sed 대상 경로(`booking/*.yaml`)와 ArgoCD Application Path(`booking`)를 새 매니페스트 구조로 갱신해야 한다.
 
 ### ArgoCD NodePort
 

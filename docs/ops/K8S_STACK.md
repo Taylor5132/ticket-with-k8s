@@ -2,7 +2,8 @@
 
 > Decision document for migrating the ticketing platform to the on-premises Kubernetes cluster.  
 > Audience: team members joining the K8s migration phase.  
-> Last updated after cross-validating every claim against actual application code.
+> Last updated after cross-validating every claim against actual application code.  
+> **2026-06-12 현행화**: 결정 중 일부는 이미 시행됐고(ambient 메시, 트레이싱), 일부는 다른 방식으로 채택됐다(수동 로컬 PV, KPR 미적용, frontend/backend/db 네임스페이스). 본문에 현재 상태를 병기하며, 미착수 계획은 "(예정)"으로 표기한다.
 
 ---
 
@@ -53,7 +54,7 @@ Every infrastructure choice below is evaluated against: **what happens at T+0 of
 
 ## CNI: Cilium
 
-**Decision**: Cilium with eBPF-based kube-proxy replacement.
+**Decision**: Cilium with eBPF-based kube-proxy replacement. **(목표 — 현재 미적용: 배포 클러스터는 `kube-proxy-replacement=false`로 kube-proxy(IPVS 모드)와 병행 중이고, Maglev도 미설정(기본 random), `routing-mode=tunnel`(VXLAN)이다. KPR 전환 시 kube-proxy/IPVS가 제거된다.)**
 
 Calico and Flannel route traffic through iptables — a serialized O(n) rule chain that degrades under connection surges. Cilium replaces iptables with eBPF programs at O(1) lookup speed.
 
@@ -80,9 +81,9 @@ helm install cilium cilium/cilium \
 
 ---
 
-## Service Mesh: Deferred (Application Does Not Need L7 Mesh)
+## Service Mesh: Istio Ambient — 도입 완료 (원계획: Deferred)
 
-**Decision**: No service mesh at initial launch. Evaluate Istio ambient after traffic patterns are established.
+**Decision (개정)**: 원래 결정은 "초기 출시엔 메시 없음"이었으나, 운영 중 **Istio 1.30 ambient 모드를 도입했다** — ztunnel 8/8 전 노드(L4 mTLS), waypoint 없음(팀 방침). 아래의 "메시 25ms 논쟁이 이 앱에 무관한 이유" 분석은 waypoint(L7 프록시)를 켜지 않는 근거로 여전히 유효하다.
 
 ### Why the "Mesh Adds 25ms" Argument Doesn't Apply Here
 
@@ -95,7 +96,7 @@ Evidence from the code:
 
 The remaining value of a service mesh for this app is **mTLS between services**. Cilium's mutual auth has been in beta for years and is not production-grade for this use case. If mTLS is required, use **Istio ambient mode** (stable as of Istio 1.22+), which adds a node-level ztunnel without sidecars.
 
-**For now**: Cilium NetworkPolicy with default-deny covers lateral movement. Add Istio ambient when the team has operational capacity.
+**For now**: Cilium NetworkPolicy with default-deny covers lateral movement. Add Istio ambient when the team has operational capacity. → **이후 ambient 도입 완료 (상단 개정 참조). NetworkPolicy와 병행 운영 중.**
 
 ---
 
@@ -108,6 +109,8 @@ The remaining value of a service mesh for this app is **mTLS between services**.
 Cilium Gateway API does not support **regex path rewrite**. This application has a hard routing requirement: `/api/performances/{id}/seat-availability` must route to `booking-api`, while all other `/api/performances/*` routes go to `event-service`. This split requires a regex match that Cilium Gateway cannot express — it is a runtime blocker.
 
 Istio Gateway handles this correctly.
+
+→ **실전 검증됨**: 다만 Gateway API 표준만으로는 regex "재작성"까지는 불가해서, 최종적으로 **EnvoyFilter**(regex capture rewrite → booking-api)로 해결했다. Cilium Gateway 기각 사유였던 이 요구사항이 실제 장애(좌석창 404)로 재확인된 셈이다.
 
 ### Why Not the Old Ingress API
 
@@ -141,13 +144,13 @@ HTTPRoute:
 
 This cluster sits behind a home router (192.168.0.1 gateway) with no port forwarding. Internet → lb-01 direct is not possible. The Cloudflare Tunnel (`cloudflared`) that was set up in Docker Compose is the correct external entry point — it opens an outbound tunnel to Cloudflare's edge, so no router config is needed.
 
-In Kubernetes: run `cloudflared` as a Deployment in `ticket-ingress` namespace. It connects to the Istio Gateway service's ClusterIP (not a LoadBalancer). Cilium LB-IPAM handles internal cluster-to-cluster LoadBalancer IPs.
+In Kubernetes: run `cloudflared` as a Deployment in the **`frontend`** namespace (실배치 ×2 HA). 게이트웨이 Svc는 LB-IPAM으로 192.168.0.100을 할당받지만 L2 announce가 없어 LAN 직접 접근은 불가 — 외부 유입은 터널 경유가 유일한 경로다.
 
 ---
 
 ## Observability: VictoriaMetrics + Loki + Grafana (Tracing Deferred)
 
-**Decision**: Deploy metrics + logs + dashboards now. Defer Tempo/Pyroscope/OTel until after first live sale.
+**Decision (개정)**: Phase 1(메트릭+로그+대시보드)과 **Phase 2(Tempo 트레이싱 + OTel Collector)가 모두 배포되었다.** 각 서비스 코드에도 `telemetry.py` 계측이 추가됨. 로그 수집기는 Promtail 대신 **Grafana Alloy**(DaemonSet)를 채택.
 
 ### Why Defer Tracing
 
@@ -158,13 +161,13 @@ Full LGTM (VictoriaMetrics + Loki + Tempo + Pyroscope + OTel Collector) costs ~1
 | Signal | Tool |
 |---|---|
 | Metrics | VictoriaMetrics |
-| Logs | Loki + Promtail (DaemonSet) |
+| Logs | Loki + Alloy (DaemonSet — Promtail 대신 채택) |
 | Visualization | Grafana |
 | Alerting | Alertmanager → Slack (warning) / PagerDuty (critical) |
 
 ### Phase 2 Stack (post-launch)
 
-Add Tempo (traces) + OpenTelemetry Collector once baseline RAM headroom is confirmed.
+Add Tempo (traces) + OpenTelemetry Collector once baseline RAM headroom is confirmed. → **배포 완료 (2026-06-12 기준 monitoring NS에서 가동 중)**
 
 ### Dashboard 1: Booking Funnel (Product View)
 
@@ -258,6 +261,10 @@ triggers:
 ## Load Testing: k6 (External, Not In-Cluster)
 
 **Decision**: Run k6 from a dedicated machine on the LAN, not inside the cluster.
+
+> **수행됨 (1차)**: `load-test/k6-test.js`로 클러스터 외부 머신에서 부하테스트 완료 — 30 VU ramp(1m 상승 → 5m 유지 → 30s 하강), 전체 예매 플로우(좌석조회 → 대기열 join/폴링 → 예매 요청 → 상태 폴링), 결과는 Prometheus remote-write로 VictoriaMetrics(:30428)에 적재.  
+> 계획과의 차이: ① 토큰을 env 주입 대신 `setup()`에서 dev-login으로 일괄 발급 (반복 로그인 회피 취지는 충족) ② `k6-vu-*` 계정은 기본 100,000P라 VIP석(150,000P)은 `INSUFFICIENT_POINTS`로 실패 가능 — 아래 demo-rich 권고는 미적용 ③ 대상 주소가 구 게이트웨이(192.168.0.99)였으므로 booking NS 폐기 후에는 192.168.0.100으로 변경 필요.  
+> 아래 Test Protocol 표(soak/spike/breakpoint)는 미수행. (예정)
 
 ### Why Not k6 Operator In-Cluster
 
@@ -364,7 +371,7 @@ Run these scenarios against staging before every major sale.
 
 ## Storage: local-path-provisioner (Primary) + Longhorn (Upgrade Path)
 
-**Decision**: Start with local-path-provisioner. Migrate to Longhorn when data HA is required.
+**Decision (개정)**: local-path-provisioner 대신 **수동 로컬 PV**를 채택했다 — StorageClass `local-storage`(no-provisioner, WaitForFirstConsumer, Retain), 노드별 `/mnt/data` 경로. fsync가 로컬 디스크로 떨어진다는 원래 논거는 동일하게 충족된다. Longhorn은 여전히 업그레이드 경로다. (예정)
 
 ### Why Not Longhorn at Launch
 
@@ -380,7 +387,7 @@ Longhorn also costs ~1–2 vCPU and 4–5 GB RAM across the cluster for its mana
 
 ## ArgoCD Integration
 
-ArgoCD manages all Kubernetes manifests as GitOps. Resource cost: ~0.3–0.5 vCPU / 1–1.5 GB RAM — fits within the 25 GB headroom alongside a deferred tracing stack.
+ArgoCD manages all Kubernetes manifests as GitOps — **가동 중(파드 7/7), GitLab `team6/manifest` repo 동기화**. Resource cost: ~0.3–0.5 vCPU / 1–1.5 GB RAM — fits within the 25 GB headroom alongside a deferred tracing stack.
 
 ### Rule 1: Remove `spec.replicas` from KEDA-managed Deployments
 
@@ -434,15 +441,16 @@ syncPolicy:
 ## Namespace Layout
 
 ```
-ticket-ingress     Istio Gateway, HTTPRoute, cloudflared Deployment
-ticket-web         React frontend Deployment
-ticket-backend     auth, event, booking-api, booking-worker, payment, saved
-ticket-data        PostgreSQL StatefulSet, Redis StatefulSet
-monitoring         VictoriaMetrics, Loki, Grafana, Alertmanager
-argocd             ArgoCD server, repo-server, application-controller
+frontend     Istio Gateway(booking-gw) + HTTPRoute + cloudflared + React frontend
+backend      auth, event, booking-api, booking-worker, payment, saved
+db           PostgreSQL, Redis (worker-01 로컬 PV)
+monitoring   VictoriaMetrics, Loki, Grafana, Alertmanager, Alloy, Tempo, OTel Collector
+argocd       ArgoCD server, repo-server, application-controller 외
 ```
 
-Cilium NetworkPolicy with default-deny per namespace. Explicit allow rules per service pair.
+(원계획의 `ticket-*` 명명은 채택되지 않았고 위 구조로 확정됐다.)
+
+NetworkPolicy default-deny per namespace + explicit allow rules — **적용 완료**. 단 ambient 메시에서는 파드 간 트래픽이 HBONE 포트 **15008/TCP**로 도착하므로, 포트를 제한하는 모든 허용 규칙에 15008을 반드시 포함해야 한다 (2026-06-12 네임스페이스 분리 마이그레이션에서 실제 장애로 확인된 교훈 — ztunnel 로그의 "NetworkPolicy is blocking HBONE port 15008"이 진단 단서였다).
 
 ---
 
@@ -452,19 +460,19 @@ Cilium NetworkPolicy with default-deny per namespace. Explicit allow rules per s
  1. Cilium CNI                    install first — networking foundation
  2. Cilium LB-IPAM                assign LoadBalancer IPs (no MetalLB needed)
  3. Istio (Gateway mode only)     Gateway API implementation, no mesh sidecars yet
- 4. ArgoCD                    storage before stateful services
- 6. PostgreSQL + Redis                GitOps from this point forward
- 5. local-path-provisioner         StatefulSets, PVCs
+ 4. ArgoCD                        GitOps from this point forward
+ 5. 로컬 PV (수동 — 계획은 local-path-provisioner)   storage before stateful services
+ 6. PostgreSQL + Redis             Deployments, PVCs
  7. Application services          raw manifests → ArgoCD Apps (ticket-backend)
  8. HTTPRoutes                    replace Caddy + Vite proxy, verify seat-availability split
  9. cloudflared                   external access via Cloudflare Tunnel
-10. KEDA                          Redis stream scaler (booking.requests) + RPS scaler
-11. Observability Phase 1         VictoriaMetrics + Loki + Grafana + Alertmanager
-12. Chaos Mesh                    run chaos suite before announcing any sale
-13. k6 load tests                 from external LAN machine, with pre-generated tokens
-14. Istio ambient (optional)      add mTLS after launch once baseline is stable
-15. Observability Phase 2         Tempo + OTel Collector once RAM headroom confirmed
-16. Longhorn migration            when node-loss RPO ≈ 0 becomes a requirement
+10. KEDA                          Redis stream scaler (booking.requests) + RPS scaler (예정)
+11. Observability Phase 1         VictoriaMetrics + Loki + Grafana + Alertmanager → 배포 완료
+12. Chaos Mesh                    run chaos suite before announcing any sale (예정)
+13. k6 load tests                 from external LAN machine → 1차 수행됨 (load-test/k6-test.js)
+14. Istio ambient (optional)      add mTLS after launch once baseline is stable → 도입 완료
+15. Observability Phase 2         Tempo + OTel Collector once RAM headroom confirmed → 배포 완료
+16. Longhorn migration            when node-loss RPO ≈ 0 becomes a requirement (예정)
 ```
 
 ---
@@ -476,15 +484,15 @@ Internet
     │
   Cloudflare Edge (TLS termination)
     │ (outbound tunnel — no port forwarding required)
-  cloudflared pod [ticket-ingress]
+  cloudflared pod [frontend]
     │
-  Istio Gateway [ticket-ingress]
+  Istio Gateway [frontend]
   (Gateway API HTTPRoutes: regex split for seat-availability)
     │
   Cilium eBPF dataplane (kube-proxy replacement, LB-IPAM, NetworkPolicy)
     │
 ┌──────────────────────────────────────────────────────────┐
-│  Worker Nodes 01–05  [ticket-backend]                    │
+│  Worker Nodes 01–05  [backend]                    │
 │                                                          │
 │  auth-service    event-service    booking-api            │
 │  payment-service saved-service    booking-worker (×2–6)  │
@@ -495,9 +503,9 @@ Internet
 └──────────────────────────────────────────────────────────┘
     │
 ┌──────────────────────────────────────────────────────────┐
-│  [ticket-data]                                           │
-│  PostgreSQL (local-path PVC, one instance per service DB)│
-│  Redis      (local-path PVC)                             │
+│  [db]                                           │
+│  PostgreSQL (로컬 PV, one instance per service DB)│
+│  Redis      (로컬 PV)                             │
 └──────────────────────────────────────────────────────────┘
     │
 ┌──────────────────────────────────────────────────────────┐

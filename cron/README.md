@@ -32,7 +32,7 @@ KOPIS OpenAPI에서 공연 정보를 수집해 `event_db`에 upsert합니다.
 
 | 테이블 | 주요 컬럼 |
 |---|---|
-| `venues` | kopis_id, name, address, province, district, seat_capacity, phone, latitude, longitude |
+| `venues` | kopis_id, name, address, province, district, seat_capacity, phone, latitude, longitude, halls_text |
 | `performances` | kopis_id, venue_id, title, start_date, end_date, poster_url, genre, status, is_open_run, cast_text, runtime, age_rating, description, intro_image_urls, schedule |
 
 **KOPIS API 엔드포인트**
@@ -60,7 +60,7 @@ DELETE FROM performances WHERE end_date < 오늘
 | 변수명 | 설명 | 예시 |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL 접속 URL | `postgresql://postgres:postgres@postgres:5432/event_db` |
-| `KOPIS_API_KEY` | KOPIS OpenAPI 서비스 키 | `0f4460e0934c4fd19f5dbb034c66bafa` |
+| `KOPIS_API_KEY` | KOPIS OpenAPI 서비스 키 | `<발급받은 서비스 키>` (실키를 문서에 커밋하지 말 것) |
 
 ---
 
@@ -88,6 +88,9 @@ docker build -t 192.168.0.237/booking_ticket/kopis-sync:latest .
 docker push 192.168.0.237/booking_ticket/kopis-sync:latest
 ```
 
+> ⚠ 이미지의 의존성은 uv 가상환경(`/app/.venv`)에 설치되므로 컨테이너 실행 명령은 반드시 `uv run python ...` (또는 `/app/.venv/bin/python`)이어야 한다. 맨 `python`으로 실행하면 시스템 인터프리터가 사용돼 `ModuleNotFoundError`가 난다.
+
+
 ---
 
 ## Kubernetes 배포 계획
@@ -96,9 +99,9 @@ docker push 192.168.0.237/booking_ticket/kopis-sync:latest
 
 | CronJob | 스케줄 | 실행 명령 |
 |---|---|---|
-| `kopis-daily-update` | `0 3 * * *` (매일 새벽 3시) | `python daily_update_data.py` |
-| `kopis-daily-delete` | `0 4 * * *` (매일 새벽 4시) | `python daily_delete_data.py` |
+| `kopis-daily-update` | `0 3 * * *` (매일 새벽 3시) | `uv run python daily_update_data.py` |
+| `kopis-daily-delete` | `0 4 * * *` (매일 새벽 4시) | `uv run python daily_delete_data.py` |
 
 - `DATABASE_URL`, `KOPIS_API_KEY`는 K8s Secret으로 주입
-- Namespace: `booking`
+- Namespace: `backend` (구 `booking` NS는 폐기 진행 중 — DATABASE_URL은 `postgres.db.svc.cluster.local`의 event_db를 가리켜야 함)
 - Image: `192.168.0.237/booking_ticket/kopis-sync:latest`

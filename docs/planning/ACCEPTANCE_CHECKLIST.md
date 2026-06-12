@@ -1,5 +1,7 @@
 # Docker Compose Prototype Acceptance Checklist
 
+> **2026-06-12 현행화**: 이 게이트는 통과 완료된 역사적 문서다 — 현재 시스템은 K8s 클러스터(frontend/backend/db NS, ArgoCD GitOps)에서 운영 중이다. "Not Required" 항목 중 일부(Google OAuth, KOPIS 실연동, K8s 매니페스트)는 이후 구현되었다.
+
 The first prototype runs with Docker Compose on an Ubuntu VM. Kubernetes work starts only after this checklist passes.
 
 ## Runtime
@@ -68,8 +70,8 @@ The first prototype runs with Docker Compose on an Ubuntu VM. Kubernetes work st
 
 - Admin page.
 - Cancellation or refund.
-- Real Kakao/Google OAuth.
+- Real Kakao/Google OAuth. → **Google OAuth는 이후 구현됨** (auth-service `/auth/google`; Kakao는 여전히 미구현)
 - Point charging UI.
 - Real payment gateway.
-- KOPIS live API ingestion.
-- Kubernetes manifests.
+- KOPIS live API ingestion. → **이후 구현됨** (`cron/` 일일 동기화)
+- Kubernetes manifests. → **이후 구현됨** (별도 repo `team6/manifest`, ArgoCD 동기화)

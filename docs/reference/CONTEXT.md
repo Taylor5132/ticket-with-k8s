@@ -13,8 +13,8 @@ The descriptive information about a Performance, such as title, venue, dates, po
 _Avoid_: KOPIS data, event info
 
 **KOPIS-Shaped Data**:
-Local Performance Metadata seeded from or modeled after KOPIS for demo reliability.
-_Avoid_: Live KOPIS feed, production ETL
+Performance Metadata in KOPIS-normalized table shape. 초기에는 로컬 시드 덤프였으나, 현재는 `cron/`의 일일 KOPIS OpenAPI 동기화가 실데이터를 공급한다 (2026-06 현행화 — 과거의 "_Avoid_: Live KOPIS feed" 지침은 폐기됨).
+_Avoid_: event info, raw API dump
 
 **Venue**:
 The place where a Performance is held, sourced from KOPIS facility metadata.
@@ -61,8 +61,12 @@ The reason a Booking Request could not become a Booking.
 _Avoid_: Error code, payment error
 
 **Booking Queue**:
-A first-in-first-out flow that limits how many Booking Requests are processed at once.
-_Avoid_: Waiting room, traffic queue
+A first-in-first-out flow that limits how many Booking Requests are processed at once (Redis Stream `booking.requests` + booking-worker).
+_Avoid_: Waiting room (그건 아래 별도 개념), payment queue
+
+**Waiting Queue (대기열)**:
+좌석 선택 페이지 진입을 통제하는 사용자 단위 가상 대기열 (Redis ZSET `queue:{performance}:{date}`, `/api/queue/*`, 초당 N명 입장). Booking Queue(요청 처리 직렬화)와는 별개의 개념이다. (2026-06 추가 — 기능 구현에 따라 용어 신설)
+_Avoid_: Booking Queue와 혼용
 
 **Point Payment**:
 A payment made by deducting the user's internal point balance.
