@@ -30,6 +30,7 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/api/performances/{performance_id}/seat-availability")
 @app.get("/performances/{performance_id}/seat-availability")
 def seat_availability(performance_id: str, show_date: str = Query(...)) -> dict:
     with engine.begin() as conn:
