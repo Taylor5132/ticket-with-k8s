@@ -72,7 +72,9 @@ build-booking:
   <<: *build_template
   script:
     - docker build -t $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA ./services/booking-service
+    - docker tag $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA $HARBOR_REGISTRY/booking_ticket/booking-worker:$CI_COMMIT_SHORT_SHA
     - docker push $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA
+    - docker push $HARBOR_REGISTRY/booking_ticket/booking-worker:$CI_COMMIT_SHORT_SHA
   rules:
     - changes:
         - services/booking-service/**/*
@@ -155,8 +157,9 @@ update-manifest-booking:
   needs: [build-booking]
   script:
     - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-api:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-api:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
+    - 'sed -i "s|image: $HARBOR_REGISTRY/booking_ticket/booking-worker:.*|image: $HARBOR_REGISTRY/booking_ticket/booking-worker:$CI_COMMIT_SHORT_SHA|g" booking/04-app-services.yaml'
     - git add .
-    - git diff --cached --quiet || git commit -m "update booking-api to $CI_COMMIT_SHORT_SHA"
+    - git diff --cached --quiet || git commit -m "update booking-api and booking-worker to $CI_COMMIT_SHORT_SHA"
     - git pull --rebase
     - git push
   rules:
