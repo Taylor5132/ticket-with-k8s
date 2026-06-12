@@ -1,6 +1,24 @@
 # Alpine OpenSSL - 업스트림 패치 적용 시 제거
 CVE-2026-45447
 
+# bookworm-slim ncurses - 업스트림 패치 없음 (affected)
+CVE-2025-69720
+
+# bookworm-slim sqlite3 - 업스트림 패치 없음 (affected)
+CVE-2025-7458
+
+# bookworm-slim perl-base - 패치 없음 (fix_deferred / affected)
+CVE-2026-42496
+CVE-2026-8376
+CVE-2026-42497
+CVE-2026-48959
+CVE-2026-48962
+CVE-2026-9538
+
+# bookworm-slim zlib1g - Debian이 패치하지 않기로 결정 (will_not_fix)
+# minizip 관련 코드로 서비스에서 직접 사용하지 않음
+CVE-2023-45853
+
 # picomatch ReDoS - npm 4.0.4 미배포 상태, 출시 시 제거
 CVE-2026-33671
 
