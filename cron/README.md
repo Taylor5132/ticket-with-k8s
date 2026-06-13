@@ -107,6 +107,55 @@ docker push 192.168.0.237/booking_ticket/kopis-sync:latest
 - Image: `192.168.0.237/booking_ticket/kopis-sync:latest`
 - 환경변수: `DATABASE_URL`, `KOPIS_API_KEY` 모두 Secret → Sealed Secrets로 관리 (아래 참조)
 
+### CronJob 주요 설정
+
+```yaml
+spec:
+  concurrencyPolicy: Forbid          # 이전 실행 중이면 새 실행 건너뜀
+  successfulJobsHistoryLimit: 1      # 성공 Job 1개만 보존 (로그 확인용)
+  failedJobsHistoryLimit: 1          # 실패 Job 1개만 보존
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600    # 1시간 초과 시 강제 종료
+      template:
+        spec:
+          restartPolicy: Never       # 실패 시 새 Pod 생성 (OnFailure 아님)
+```
+
+**`restartPolicy: Never` vs `OnFailure`**
+
+| | `Never` | `OnFailure` |
+|---|---|---|
+| 실패 시 동작 | 새 Pod 생성 | 같은 Pod 내 컨테이너 재시작 |
+| 로그 | 시도마다 Pod 분리 → 디버깅 용이 | 이전 시도 로그 덮어써짐 |
+| 리소스 | 약간 무거움 | 가벼움 |
+
+upsert 기반 배치 스크립트는 처음부터 재실행해도 안전하므로 `Never`가 적합하다.
+
+**`activeDeadlineSeconds` 필요성**
+
+KOPIS API 무응답 시 스크립트가 무한 대기할 수 있다. 3600초(1시간) 제한으로 hung Job을 자동 종료한다.
+
+### 수동 테스트
+
+```bash
+# 수동으로 Job 실행
+kubectl -n backend create job kopis-test --from=cronjob/kopis-daily-update
+
+# 완료 대기 후 로그 확인
+kubectl -n backend get pods | grep kopis-test
+kubectl -n backend logs <pod-name>
+
+# 테스트 Job 정리
+kubectl -n backend delete job kopis-test
+```
+
+> ⚠ **Python stdout 버퍼링**: `kubectl logs -f`로 실시간 스트리밍이 안 될 수 있다.
+> 컨테이너에 `PYTHONUNBUFFERED=1` 환경변수를 추가하면 해결된다.
+
+> ⚠ **postgres 재시작 주의**: Job이 실행 중인 상태에서 postgres Pod를 재시작하면
+> WAL 손상이 발생할 수 있다. Job 완료 후 postgres 변경을 적용할 것.
+
 ### CronJob 시간대(Timezone) 설정
 
 CronJob의 schedule은 **기본값이 UTC**다. KST 기준 새벽 3시/4시에 실행하려면 두 곳에 모두 설정해야 한다.
