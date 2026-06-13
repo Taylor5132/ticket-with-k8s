@@ -22,9 +22,11 @@ CVE-2023-45853
 # picomatch ReDoS - npm 4.0.4 미배포 상태, 출시 시 제거
 CVE-2026-33671
 
-# esbuild 바이너리 내부 Go stdlib CVE
+# esbuild 바이너리 내부 Go stdlib CVE + Deno 모듈 취약점
 # esbuild는 빌드 도구로 실제 서비스 공격 표면이 아님
+# GHSA-gv7w-rqvm-qjhr: Deno 환경 전용 취약점, Node.js 환경에서 미적용
 # vite 메이저 업그레이드 시 재검토 필요
+GHSA-gv7w-rqvm-qjhr
 CVE-2024-24790
 CVE-2025-68121
 CVE-2023-45288
