@@ -32,7 +32,7 @@ K8s 매니페스트는 이 repo가 아니라 **GitLab `team6/manifest` repo**에
 | 위치 | 성격 | 내용 |
 |---|---|---|
 | [docs/reference/](docs/reference/) | **살아있는 스펙** — 코드 변경 시 함께 갱신 | API 계약, DB/Redis 스키마, 도메인 용어, UI 카피 |
-| [docs/ops/](docs/ops/) | 인프라·운영 | K8s 스택 설계/현황, CI/CD, 로컬 런북 |
+| [docs/ops/](docs/ops/) | 인프라·운영 | K8s 스택 설계/현황, CI/CD, 로컬 런북, 부하 셰딩, 리소스 쿼터/리밋 |
 | [docs/planning/](docs/planning/) | 역사적 계획 (현행화 주석 포함) | 최초 빌드 계획, 인프라 계획, 수용 체크리스트 |
 | [docs/adr/](docs/adr/) | 아키텍처 결정 기록 | ADR-0001~0007 |
 | [cron/README.md](cron/README.md) | 배치 가이드 | KOPIS 동기화 실행/배포 |
