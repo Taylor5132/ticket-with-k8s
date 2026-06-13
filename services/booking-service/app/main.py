@@ -1,6 +1,4 @@
 #test
-import os
-import time
 import uuid
 
 import redis
@@ -9,15 +7,39 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
 
-from .common import REDIS_URL, STREAM_NAME, current_user, engine, generate_seats
+from .common import (
+    ENFORCE_ADMISSION_TOKEN,
+    QUEUE_TTL,
+    REDIS_URL,
+    STREAM_NAME,
+    ACTIVE_QUEUES_KEY,
+    current_user,
+    engine,
+    ensure_admission_group,
+    generate_seats,
+    queue_key,
+    queue_member,
+    seq_key,
+    token_key,
+)
 
 
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 app = FastAPI(title="booking-service")
 from app.telemetry import configure_tracing; configure_tracing(app, "booking-service")
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
 
-QUEUE_ADMISSION_RATE = float(os.getenv("QUEUE_ADMISSION_RATE", "3"))  # users admitted per second
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.on_event("startup")
+def _init_admission() -> None:
+    # work-stream Consumer Group 멱등 생성 (Dispatcher/Worker 배포 전이라도 안전)
+    try:
+        ensure_admission_group(r)
+    except Exception:
+        pass  # Redis 미가용 시 기동은 막지 않음 (워커가 재시도)
 
 
 class BookingRequestCreate(BaseModel):
@@ -47,6 +69,10 @@ def seat_availability(performance_id: str, show_date: str = Query(...)) -> dict:
 
 @app.post("/booking-requests")
 def create_booking_request(body: BookingRequestCreate, user: dict = Depends(current_user)) -> dict:
+    # 입장 토큰 게이트: ENFORCE_ADMISSION_TOKEN=true일 때만 강제 (기본 off → 기존 프론트 안 깨짐)
+    if ENFORCE_ADMISSION_TOKEN and r.get(token_key(body.performance_id, body.show_date, user["id"])) is None:
+        raise HTTPException(status_code=403, detail={"code": "NO_ADMISSION_TOKEN", "message": "대기열을 통과한 뒤 예매할 수 있습니다."})
+
     valid_seat_ids = {seat["seat_id"] for seat in generate_seats()}
     if body.seat_id not in valid_seat_ids:
         raise HTTPException(status_code=400, detail={"code": "INVALID_SEAT", "message": "좌석을 선택해 주세요."})
@@ -107,32 +133,39 @@ def booking_request(request_id: str, user: dict = Depends(current_user)) -> dict
 
 @app.post("/queue/join")
 def queue_join(performance_id: str, show_date: str, user: dict = Depends(current_user)) -> dict:
-    key = f"queue:{performance_id}:{show_date}"
-    r.zadd(key, {user["id"]: time.time()}, nx=True)  # nx=True: don't overwrite existing score
-    r.expire(key, 3600)
-    position = r.zrank(key, user["id"])
+    """대기줄 진입. 번호표(INCR seq)를 score로 ZADD → 선착순 FIFO.
+    이미 입장 토큰이 있으면 바로 admitted."""
+    uid = user["id"]
+    if r.get(token_key(performance_id, show_date, uid)) is not None:
+        return {"admitted": True, "position": 0, "total": 0}
+
+    key = queue_key(performance_id, show_date)
+    if r.zscore(key, uid) is None:  # 처음 진입한 사람만 번호표 발급
+        seq = r.incr(seq_key(performance_id, show_date))  # 원자적 — 번호 안 겹침
+        r.zadd(key, {uid: seq}, nx=True)
+        r.sadd(ACTIVE_QUEUES_KEY, queue_member(performance_id, show_date))  # Dispatcher 순회 대상 등록
+    r.expire(key, QUEUE_TTL)
+    r.expire(seq_key(performance_id, show_date), QUEUE_TTL)
+
+    position = r.zrank(key, uid)
     total = r.zcard(key)
-    return {"position": int(position) + 1, "total": int(total)}
+    return {"admitted": False, "position": int(position) + 1 if position is not None else 0, "total": int(total)}
 
 
 @app.get("/queue/status")
 def queue_status(performance_id: str, show_date: str, user: dict = Depends(current_user)) -> dict:
-    key = f"queue:{performance_id}:{show_date}"
-    if r.zscore(key, user["id"]) is None:
+    """입장 여부는 '토큰 존재'로 판정 (Dispatcher가 줄에서 빼고 Worker가 토큰 발급).
+    줄에도 없고 토큰도 없으면(아직 토큰 발급 전 in-flight 등) 대기 상태로 응답."""
+    uid = user["id"]
+    if r.get(token_key(performance_id, show_date, uid)) is not None:
         return {"admitted": True, "position": 0, "total": 0}
 
-    # Advance queue: remove users admitted since the first joiner entered
-    earliest = r.zrange(key, 0, 0, withscores=True)
-    if earliest:
-        elapsed = time.time() - earliest[0][1]
-        admitted_count = int(elapsed * QUEUE_ADMISSION_RATE)
-        if admitted_count > 0:
-            r.zremrangebyrank(key, 0, admitted_count - 1)
-
-    position = r.zrank(key, user["id"])
-    if position is None:
-        return {"admitted": True, "position": 0, "total": 0}
+    key = queue_key(performance_id, show_date)
+    position = r.zrank(key, uid)
     total = r.zcard(key)
+    if position is None:
+        # 줄에서 빠졌지만 아직 토큰 미발급(스트림 처리 중) → 잠시 대기로 응답
+        return {"admitted": False, "position": 0, "total": int(total)}
     return {"admitted": False, "position": int(position) + 1, "total": int(total)}
 
 

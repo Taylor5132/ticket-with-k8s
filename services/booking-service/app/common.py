@@ -16,7 +16,67 @@ JWT_ALGORITHM = "HS256"
 STREAM_NAME = "booking.requests"
 CONSUMER_GROUP = "booking-workers"
 
+# ── 대기열(Waiting Queue) 파이프라인 상수 ──────────────────────────
+# 설계 근거: docs/ops/redis-queue-architecture.md
+WORK_STREAM = "work-stream"            # 입장 처리 스트림 (단일, 전 공연 공용)
+ADMISSION_GROUP = "admission-workers"  # 입장 워커 Consumer Group
+ADMISSION_RATE = float(os.getenv("QUEUE_ADMISSION_RATE", "3"))     # 큐당 초당 입장 인원
+ADMISSION_TOKEN_TTL = int(os.getenv("ADMISSION_TOKEN_TTL", "600")) # 입장 토큰 수명(초)
+QUEUE_TTL = int(os.getenv("QUEUE_TTL", "3600"))                    # 유휴 큐 자동 만료(초)
+ENFORCE_ADMISSION_TOKEN = os.getenv("ENFORCE_ADMISSION_TOKEN", "false").lower() == "true"
+ACTIVE_QUEUES_KEY = "active-queues"    # Dispatcher가 순회할 활성 큐 레지스트리(Set)
+
+
+def queue_key(performance_id: str, show_date: str) -> str:
+    return f"queue:{performance_id}:{show_date}"
+
+
+def seq_key(performance_id: str, show_date: str) -> str:
+    return f"seq:{performance_id}:{show_date}"
+
+
+def token_key(performance_id: str, show_date: str, user_id: str) -> str:
+    return f"token:{performance_id}:{show_date}:{user_id}"
+
+
+def queue_member(performance_id: str, show_date: str) -> str:
+    """active-queues Set에 넣는 멤버 식별자."""
+    return f"{performance_id}:{show_date}"
+
+
+# Dispatcher 원자 핸드오프: ZSET 앞 N명을 빼서 work-stream에 XADD.
+# ZPOPMIN과 XADD 사이에 죽어도 일감이 증발하지 않도록 Lua 단일 실행으로 원자화.
+#   KEYS[1] = queue:{perf}:{date}   (대기줄 ZSET)
+#   KEYS[2] = work-stream           (입장 처리 스트림)
+#   ARGV[1] = count                 (이번에 뺄 인원)
+#   ARGV[2] = performance_id
+#   ARGV[3] = show_date
+# 반환: 실제로 핸드오프한 인원 수
+DISPATCH_LUA = """
+local popped = redis.call('ZPOPMIN', KEYS[1], tonumber(ARGV[1]))
+local moved = 0
+for i = 1, #popped, 2 do
+  local user_id = popped[i]
+  redis.call('XADD', KEYS[2], '*',
+    'user_id', user_id,
+    'performance_id', ARGV[2],
+    'show_date', ARGV[3])
+  moved = moved + 1
+end
+return moved
+"""
+
 engine: Engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+
+
+def ensure_admission_group(client) -> None:
+    """work-stream의 Consumer Group을 멱등하게 생성 (이미 있으면 무시).
+    MKSTREAM으로 스트림이 없어도 함께 생성한다."""
+    try:
+        client.xgroup_create(WORK_STREAM, ADMISSION_GROUP, id="0", mkstream=True)
+    except Exception as exc:  # redis.exceptions.ResponseError: BUSYGROUP
+        if "BUSYGROUP" not in str(exc):
+            raise
 
 GRADE_RULES = {
     "A": ("VIP", 150000),

@@ -49,19 +49,29 @@ export default function Seats() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
 
-  // Step 1: join queue on mount (only when logged in)
-  useEffect(() => {
-    if (!showDate || !token) { setQueueChecked(true); return; }
-    api<{ position: number; total: number }>(
-      `/api/queue/join?performance_id=${id}&show_date=${showDate}`,
-      token,
-      { method: "POST" }
-    ).then(({ position, total }) => {
-      if (position > 1) {
-        setQueue({ position, total, initial: position });
+  // 대기열 진입: 줄서기 후 입장 허가(admitted=토큰 발급)까지 기다린다.
+  // 새 백엔드는 position 1이어도 Dispatcher→토큰 발급을 거쳐야 입장이므로,
+  // admitted=false면 순번과 무관하게 항상 대기 화면으로 보낸다.
+  const enterQueue = async (): Promise<void> => {
+    if (!showDate || !token) return;  // 비로그인은 큐 없이 좌석 열람(예매 시 로그인 유도)
+    try {
+      const { admitted, position, total } = await api<{ admitted: boolean; position: number; total: number }>(
+        `/api/queue/join?performance_id=${id}&show_date=${showDate}`,
+        token,
+        { method: "POST" },
+      );
+      if (!admitted) {
+        const pos = position || 1;
+        setQueue({ position: pos, total, initial: pos });
       }
-      setQueueChecked(true);
-    }).catch(() => setQueueChecked(true));
+    } catch {
+      // 큐 호출 실패 시 통과 (게이트 off면 영향 없음 — 좌석으로 진행)
+    }
+  };
+
+  // Step 1: join queue on mount
+  useEffect(() => {
+    enterQueue().finally(() => setQueueChecked(true));
   }, []);
 
   // Step 2: poll while in queue
@@ -120,8 +130,14 @@ export default function Seats() {
       );
       navigate(`/booking?ids=${results.map((r) => r.request_id).join(",")}`);
     } catch (e: any) {
-      alert(e.message);
       setBooking(false);
+      if (e?.code === "NO_ADMISSION_TOKEN") {
+        // 입장 토큰 만료 → 대기열로 복귀
+        setSelected([]);
+        await enterQueue();
+        return;
+      }
+      alert(e.message);
     }
   };
 

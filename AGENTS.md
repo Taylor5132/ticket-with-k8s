@@ -43,6 +43,7 @@
 | 화면 문구/버튼/신규 화면 (`apps/frontend/src`) | `docs/reference/UI_COPY.md` |
 | 도메인 개념 추가/변경 | `docs/reference/CONTEXT.md` (용어 사전) |
 | K8s/메시/스토리지/관측 구성 | `docs/ops/K8S_STACK.md` |
+| 네임스페이스 ResourceQuota/LimitRange (manifest repo `booking/17~18`, `monitoring/11`) | `docs/ops/QUOTA_LIMITS_REPORT.md` |
 | `.gitlab-ci.yml` 스테이지/잡 | `docs/ops/CICD_PLAN.md` |
 | 로컬 실행 절차/포트 | `docs/ops/PROTOTYPE_RUNBOOK.md` |
 | `cron/` 스크립트 동작 | `cron/README.md` |

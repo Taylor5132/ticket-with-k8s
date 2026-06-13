@@ -13,6 +13,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres
 engine: Engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 app = FastAPI(title="event-service")
 from app.telemetry import configure_tracing; configure_tracing(app, "event-service")
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 GRADE_RULES = {

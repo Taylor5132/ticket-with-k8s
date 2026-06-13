@@ -14,8 +14,9 @@ const queueWaitMs          = new Trend("queue_wait_ms",    true);
 const bookingConfirmMs     = new Trend("booking_confirm_ms", true);
 
 // ── Config ──────────────────────────────────────────────────────────
-const BASE_URL  = "http://192.168.0.99";
-const NUM_USERS = 30;
+const BASE_URL   = "http://192.168.0.100";
+const TARGET_VUS = 100;   // single knob — change this per run (30 → 60 → 100)
+const NUM_USERS  = TARGET_VUS;
 
 // 10 future performances all on 2026-07-01 (80 fresh seats each)
 const PERFS = ["287","170","236","80","99","126","185","215","41","290"];
@@ -24,18 +25,25 @@ const SHOW_DATE = "2026-07-01";
 export const options = {
   scenarios: {
     booking_flow: {
-      executor:    "ramping-vus",
-      startVUs:    0,
+      executor: "ramping-vus",
+      startVUs: 0,
       stages: [
-        { duration: "1m",  target: 30 },
-        { duration: "5m",  target: 30 },
-        { duration: "30s", target: 0  },
+        { duration: "1m",  target: Math.round(TARGET_VUS * 0.3) },  // step 1: 30%
+        { duration: "3m",  target: Math.round(TARGET_VUS * 0.3) },  // hold
+        { duration: "1m",  target: Math.round(TARGET_VUS * 0.6) },  // step 2: 60%
+        { duration: "3m",  target: Math.round(TARGET_VUS * 0.6) },  // hold
+        { duration: "1m",  target: TARGET_VUS },                    // step 3: 100%
+        { duration: "3m",  target: TARGET_VUS },                    // hold
+        { duration: "30s", target: 0 },
       ],
     },
   },
   thresholds: {
     "http_req_duration{status:200}": ["p(95)<500"],
-    http_req_failed:                  ["rate<0.01"],
+    http_req_failed: [
+      "rate<0.01",
+      { threshold: "rate<0.20", abortOnFail: true },  // hard stop before cascade
+    ],
   },
 };
 

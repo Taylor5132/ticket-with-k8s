@@ -13,5 +13,6 @@ dependencies = [
   "opentelemetry-exporter-otlp-proto-grpc>=1.24.0",
   "opentelemetry-instrumentation-fastapi>=0.45b0",
   "opentelemetry-instrumentation-redis>=0.45b0",
-  "opentelemetry-instrumentation-httpx>=0.45b0"
+  "opentelemetry-instrumentation-httpx>=0.45b0",
+  "prometheus-fastapi-instrumentator>=0.21.0"
 ]
