@@ -33,6 +33,8 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 engine: Engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 app = FastAPI(title="auth-service")
 from app.telemetry import configure_tracing; configure_tracing(app, "auth-service")
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 

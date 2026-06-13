@@ -15,6 +15,8 @@ from .common import REDIS_URL, STREAM_NAME, current_user, engine, generate_seats
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 app = FastAPI(title="booking-service")
 from app.telemetry import configure_tracing; configure_tracing(app, "booking-service")
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
 
 QUEUE_ADMISSION_RATE = float(os.getenv("QUEUE_ADMISSION_RATE", "3"))  # users admitted per second
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
