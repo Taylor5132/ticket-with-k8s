@@ -114,22 +114,17 @@ def performances(
     # risk that motivated a cap is mitigated elsewhere (memory 512Mi + the
     # load test no longer hammers this endpoint).
     clauses = []
-    params: dict = {}
+    fparams: dict = {}
     if genre:
         clauses.append("p.genre = :genre")
-        params["genre"] = genre
+        fparams["genre"] = genre
     if area:
         clauses.append("v.province = :area")
-        params["area"] = area
+        fparams["area"] = area
     if status:
         clauses.append("p.status = :status")
-        params["status"] = status
+        fparams["status"] = status
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    pagination = ""
-    if limit is not None:
-        pagination = "LIMIT :limit OFFSET :offset"
-        params["limit"] = limit
-        params["offset"] = offset
     sql = f"""
         SELECT p.id, p.kopis_id, p.title, p.poster_url, p.genre, p.status,
                p.start_date, p.end_date, v.name AS venue_name, v.province
@@ -137,9 +132,80 @@ def performances(
         JOIN venues v ON v.id = p.venue_id
         {where}
         ORDER BY p.start_date ASC, p.id ASC
-        {pagination}
     """
-    with engine.begin() as conn:
+    params = dict(fparams)
+    if limit is not None:
+        sql += " LIMIT :limit OFFSET :offset"
+        params["limit"] = limit
+        params["offset"] = offset
+    # engine.connect() (not begin()): a read does not need a BEGIN/COMMIT txn.
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).mappings().all()
+        # total for the active filter — lets the infinite-scroll client know
+        # when to stop and show the result count without fetching every row.
+        total = (
+            conn.execute(
+                text(f"SELECT count(*) FROM performances p JOIN venues v ON v.id = p.venue_id {where}"),
+                fparams,
+            ).scalar_one()
+            if limit is not None
+            else len(rows)
+        )
+    return {"items": [performance_card(row) for row in rows], "total": total}
+
+
+@app.get("/performances/facets")
+def performances_facets() -> dict:
+    """Global filter facets (genre/area counts) + catalog total.
+
+    Replaces the dashboard's client-side countBy over the full list, so the
+    homepage no longer fetches all ~2,789 rows just to build the filter sidebar.
+    """
+    with engine.connect() as conn:
+        total = conn.execute(text("SELECT count(*) FROM performances")).scalar_one()
+        genres = conn.execute(text(
+            "SELECT genre AS name, count(*) AS count FROM performances "
+            "WHERE genre IS NOT NULL AND genre <> '' "
+            "GROUP BY genre ORDER BY count DESC, name ASC LIMIT 12"
+        )).mappings().all()
+        areas = conn.execute(text(
+            "SELECT v.province AS name, count(*) AS count "
+            "FROM performances p JOIN venues v ON v.id = p.venue_id "
+            "WHERE v.province IS NOT NULL AND v.province <> '' "
+            "GROUP BY v.province ORDER BY count DESC, name ASC LIMIT 12"
+        )).mappings().all()
+    return {
+        "total": total,
+        "genres": [{"name": r["name"], "count": r["count"]} for r in genres],
+        "areas": [{"name": r["name"], "count": r["count"]} for r in areas],
+    }
+
+
+@app.get("/performances/upcoming")
+def performances_upcoming(
+    genre: str | None = Query(default=None),
+    area: str | None = Query(default=None),
+) -> dict:
+    """'오픈 예정' row: performances opening in the next 1-3 days (D-1..D-3),
+    honoring the active genre/area filter. Replaces the client-side D-day scan.
+    """
+    clauses = ["p.status = '공연예정'", "p.start_date BETWEEN :lo AND :hi"]
+    params: dict = {"lo": date.today() + timedelta(days=1), "hi": date.today() + timedelta(days=3)}
+    if genre:
+        clauses.append("p.genre = :genre")
+        params["genre"] = genre
+    if area:
+        clauses.append("v.province = :area")
+        params["area"] = area
+    sql = f"""
+        SELECT p.id, p.kopis_id, p.title, p.poster_url, p.genre, p.status,
+               p.start_date, p.end_date, v.name AS venue_name, v.province
+        FROM performances p
+        JOIN venues v ON v.id = p.venue_id
+        WHERE {' AND '.join(clauses)}
+        ORDER BY p.start_date ASC, p.id ASC
+    """
+    with engine.connect() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
     return {"items": [performance_card(row) for row in rows]}
 
