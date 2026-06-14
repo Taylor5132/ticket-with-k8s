@@ -116,7 +116,7 @@ sonar-booking:
         -v $CI_PROJECT_DIR:/workspace
         -w /workspace
         python:3.12-slim
-        sh -c "pip install -q --pre pytest pytest-cov pyjwt fastapi httpx sqlalchemy redis opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-sqlalchemy opentelemetry-instrumentation-redis opentelemetry-instrumentation-httpx prometheus-fastapi-instrumentator && PYTHONPATH=/workspace/services/booking-service python -m pytest services/booking-service/tests/ --cov=services/booking-service/app --cov-report=xml:coverage-booking.xml -q"
+        sh -c "pip install -q pytest pytest-cov pyjwt fastapi httpx sqlalchemy redis && PYTHONPATH=/workspace/services/booking-service python -m pytest services/booking-service/tests/ --cov=services/booking-service/app --cov-report=xml:coverage-booking.xml -q"
     - docker run --rm
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL

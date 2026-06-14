@@ -1,5 +1,32 @@
+import sys
+from unittest.mock import MagicMock
 import pytest
 import jwt
+
+# app 모듈 import 전에 무거운 의존성을 미리 mock 처리
+# (CI 환경에서 opentelemetry/grpcio/prometheus 미설치 시에도 동작)
+_mock_modules = [
+    "opentelemetry",
+    "opentelemetry.trace",
+    "opentelemetry.sdk",
+    "opentelemetry.sdk.trace",
+    "opentelemetry.sdk.trace.export",
+    "opentelemetry.sdk.resources",
+    "opentelemetry.exporter",
+    "opentelemetry.exporter.otlp",
+    "opentelemetry.exporter.otlp.proto",
+    "opentelemetry.exporter.otlp.proto.grpc",
+    "opentelemetry.exporter.otlp.proto.grpc.trace_exporter",
+    "opentelemetry.instrumentation",
+    "opentelemetry.instrumentation.fastapi",
+    "opentelemetry.instrumentation.sqlalchemy",
+    "opentelemetry.instrumentation.redis",
+    "opentelemetry.instrumentation.httpx",
+    "prometheus_fastapi_instrumentator",
+]
+for _mod in _mock_modules:
+    sys.modules.setdefault(_mod, MagicMock())
+
 
 JWT_SECRET = "dev-secret"
 JWT_ALGORITHM = "HS256"
