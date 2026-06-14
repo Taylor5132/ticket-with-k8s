@@ -1,6 +1,6 @@
 # ResourceQuota & LimitRange — Setup Report
 
-> **작성일 / Date**: 2026-06-13
+> **작성일 / Date**: 2026-06-13 (updated 2026-06-14 — ephemeral-storage 추가)
 > **대상 네임스페이스 / Namespaces**: `backend`, `db`, `frontend` (compute quota) + `monitoring` (hygiene LimitRange only)
 > **관련 매니페스트 / Files**: `booking/17-limit-ranges.yaml`, `booking/18-resource-quotas.yaml`, `monitoring/11-limit-range.yaml`
 
@@ -29,24 +29,26 @@
 | `booking/18-resource-quotas.yaml` | `ResourceQuota` ×3 | backend, db, frontend |
 | `monitoring/11-limit-range.yaml` | `LimitRange` ×1 | monitoring (위생용, 하드 캡 없음) |
 
-### 2.1 ResourceQuota (compute only — cpu/memory)
+### 2.1 ResourceQuota (compute + ephemeral-storage)
 
-| Namespace | requests.cpu | requests.memory | limits.cpu | limits.memory |
-|---|---|---|---|---|
-| `backend` | `4` | `6Gi` | `20` | `12Gi` |
-| `db` | `1` | `2Gi` | `3` | `3Gi` |
-| `frontend` | `1` | `1Gi` | `4` | `3Gi` |
+| Namespace | requests.cpu | requests.memory | requests.ephemeral-storage | limits.cpu | limits.memory |
+|---|---|---|---|---|---|
+| `backend` | `4` | `6Gi` | `8Gi` | `20` | `12Gi` |
+| `db` | `1` | `2Gi` | — | `3` | `3Gi` |
+| `frontend` | `1` | `1Gi` | — | `4` | `3Gi` |
 
 > `monitoring`에는 하드 컴퓨트 쿼터를 두지 않았다 — 관측 스택을 너무 조이면 장애를 못 보게 되므로.
+> `requests.ephemeral-storage`는 폭주가 KEDA로 증폭되는 `backend`에만 두었다. `db`/`frontend`는 파드 수가
+> 고정이고 작아 쿼터 가치가 낮다 — LimitRange의 ephemeral 기본값으로 노드 보호는 동일하게 적용된다.
 
 ### 2.2 LimitRange (컨테이너 기본값 주입)
 
-| Namespace | defaultRequest (cpu/mem) | default limit (cpu/mem) | 역할 |
+| Namespace | defaultRequest (cpu/mem/ephem) | default limit (cpu/mem/ephem) | 역할 |
 |---|---|---|---|
-| `backend` | 50m / 64Mi | 500m / 256Mi | 위생 백스톱 (서비스들은 이미 자체 값 보유) |
-| `db` | 250m / 512Mi | 1000m / 1Gi | **postgres·redis가 resources 미선언 → 기본값 주입** |
-| `frontend` | 50m / 64Mi | 300m / 256Mi | **frontend·cloudflared 미선언 → 기본값 주입** |
-| `monitoring` | 50m / 64Mi | *(없음)* + `max` 4 / 8Gi | 위생용 — `default` limit 미설정으로 중량 파드 OOMKill 회피 |
+| `backend` | 50m / 64Mi / 128Mi | 500m / 256Mi / 1Gi | 위생 백스톱 (서비스들은 cpu/mem 자체 값 보유, **ephemeral 은 전부 미선언 → 36파드 주입**) |
+| `db` | 250m / 512Mi / 256Mi | 1000m / 1Gi / 2Gi | **postgres·redis가 resources 미선언 → 기본값 주입** (temp_file 대비 ephem 넉넉) |
+| `frontend` | 50m / 64Mi / 128Mi | 300m / 256Mi / 512Mi | **frontend·cloudflared 미선언 → 기본값 주입** |
+| `monitoring` | 50m / 64Mi | *(없음)* + `max` 4 / 8Gi | 위생용 — `default` limit 미설정으로 중량 파드 OOMKill 회피 (ephem 미적용, §7 참고) |
 
 ---
 
@@ -150,4 +152,58 @@ db/frontend 파드가 주입된 기본 resources를 표시.
 - [ ] **미선언 파드 카운트**: db/frontend의 기존 파드는 재기동 시 사용량이 약간 상승한다(여전히 한도 내). db는 이미 1개 반영됨.
 - [ ] **ArgoCD App path**: `booking/`·`monitoring/` 디렉터리를 watch하는지 확인 (적용된 걸로 보아 정상 작동 중).
 - [ ] **튜닝 후속**: 첫 실세일 후 실제 사용량 baseline이 나오면 헤드룸을 재조정.
-- [ ] (선택) storage/object-count 쿼터는 이번 범위에서 제외 — 필요 시 추가.
+- [x] **storage/object-count 쿼터 결정 (2026-06-14)** — §8 참고. ephemeral-storage 추가, PVC/object 쿼터는 근거 있게 제외.
+
+---
+
+## 8. Storage / object-count 결정 (2026-06-14)
+
+§7의 마지막 open item("storage/object-count 쿼터")을 검토하고 결론냈다.
+
+### 8.1 ephemeral-storage limits — **추가함 ✅**
+실제 스토리지 리스크는 PVC가 아니라 **노드 로컬 ephemeral 디스크**(컨테이너 쓰기 레이어 +
+stdout 로그 + emptyDir)다. 기존 LimitRange/Quota는 cpu·memory만 제한해 이 축이 무방비였다.
+
+- 플래시세일 중 KEDA가 backend를 8/8/6으로 확장 + Loki로 로그가 쏟아질 때, 로그/임시파일을
+  마구 쓰는 파드 하나가 워커를 **DiskPressure → 파드 축출(피크 시점!)** 로 몰 수 있다.
+  이를 막는 레버는 ephemeral-storage request/limit 뿐.
+- 적용: `17-limit-ranges.yaml`의 세 LimitRange에 `ephemeral-storage` defaultRequest/default 추가
+  (backend 128Mi/1Gi, db 256Mi/2Gi, frontend 128Mi/512Mi).
+- `18-resource-quotas.yaml`의 backend 쿼터에 `requests.ephemeral-storage: 8Gi` 추가
+  (36파드 ceiling × 128Mi ≈ 4.5Gi + 서지/CronJob 헤드룸). **cpu/memory와 동일하게 쿼터는
+  오토스케일 상한 이상** — 낮으면 세일 중 KEDA가 ephemeral 쿼터에서 조용히 막힌다.
+
+### 8.2 PVC storage 쿼터(`requests.storage`/`persistentvolumeclaims`) — **제외 (의도적)**
+클러스터의 모든 StorageClass가 `kubernetes.io/no-provisioner`(`booking/00-storage.yaml`)다.
+PVC가 스스로 볼륨을 만들 수 없고, 관리자가 미리 만든(GitOps 추적) PV에만 바인딩된다.
+→ 스토리지 쿼터가 막으려는 "동적 무한 프로비저닝" 시나리오가 **구조적으로 발생 불가**.
+PVC-count 캡이 주는 건 잘못 만든 PVC의 admission 거부(메시지 약간 명확)뿐 — 가치 낮아 생략.
+
+### 8.3 object-count 쿼터(`count/pods`, `count/secrets` 등) — **제외 (저우선)**
+- 동기였던 "KEDA 오설정 파드 폭증"은 **이미 compute 쿼터가 차단**한다(`requests.cpu/memory`
+  소진 시 추가 파드 스케줄 불가). 게다가 LimitRange가 모든 컨테이너에 `defaultRequest`를
+  주입하므로 compute 회계를 빠져나가는 zero-request 파드가 없다 → `count/pods`는 사실상 중복.
+- Job/Pod 누적은 이미 제어됨: kopis CronJob들이 `successfulJobsHistoryLimit:1` /
+  `failedJobsHistoryLimit:1` + `concurrencyPolicy: Forbid`(`booking/13-kopis-cronjob.yaml`).
+- Secret/ConfigMap 누적(SealedSecrets+ArgoCD+Helm)은 이론상 가능하나 이 랩 규모에선 etcd
+  압박 무의미. → 필요해지면 그때 `count/pods` 트립와이어 정도만 추가.
+
+### 8.4 monitoring ephemeral — **추가함 ✅ (max-as-default 주의)**
+`monitoring/11-limit-range.yaml`에 `defaultRequest: { ephemeral-storage: 256Mi }` +
+`max.ephemeral-storage: 10Gi` 추가.
+
+⚠️ **중요한 K8s 동작**: LimitRange에서 어떤 리소스에 `max`만 있고 `default`(limit)가 없으면
+**`max` 값이 그대로 default limit으로 주입**된다. 모니터링 파드는 cpu/mem limit은 자체 선언하지만
+ephemeral limit은 선언하지 않으므로, `max.ephemeral-storage: 10Gi`는 사실상 **모든 모니터링
+컨테이너의 ephemeral limit = 10Gi**로 작동한다(= "limit 없는 가드레일"은 ephemeral에선 성립 안 함).
+
+그래서 10Gi를 **일부러 높게** 잡았다:
+- Loki/VM/Tempo의 영구 데이터는 PVC(각 5/10/10Gi)로 가고, 노드 ephemeral은 주로 로그·쓰기
+  레이어·emptyDir(alloy) → 정상 동작은 10Gi에 절대 안 닿는다.
+- 폭주(워커 ~50GB 루트 디스크를 채워 DiskPressure → 노드 전체 파드 축출) 직전에는 **문제
+  파드 하나만** ephemeral limit 초과로 격리 축출된다 → 관측 스택 전체 붕괴 방지.
+- `defaultRequest: 256Mi`는 스케줄러의 ephemeral 예약 + kubelet의 DiskPressure 축출 순위
+  (request 초과 파드 우선 축출) 근거로 쓰인다.
+
+> monitoring에는 여전히 **하드 ResourceQuota는 없다** — LimitRange(위생/가드레일)만 둔다는
+> 원래 설계 그대로. ephemeral도 쿼터가 아니라 per-pod LimitRange로만 다뤘다.
