@@ -104,14 +104,17 @@ def performances(
     genre: str | None = Query(default=None),
     area: str | None = Query(default=None),
     status: str | None = Query(default=None),
-    limit: int = Query(default=100, ge=1, le=200),
+    limit: int | None = Query(default=None, ge=1, le=2000),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
-    # Pagination is mandatory: the catalog holds thousands of rows and an
-    # unbounded SELECT materialized every row as a dict per request, which
-    # OOM-killed the pod (256Mi limit) under load. limit is capped at 200.
+    # The dashboard fetches the FULL catalog once and derives every view
+    # client-side (filters, "opening soon", grid), so the default must return
+    # all rows — capping it hid most of the catalog and broke the homepage.
+    # limit/offset are optional opt-in pagination for other clients. The OOM
+    # risk that motivated a cap is mitigated elsewhere (memory 512Mi + the
+    # load test no longer hammers this endpoint).
     clauses = []
-    params: dict = {"limit": limit, "offset": offset}
+    params: dict = {}
     if genre:
         clauses.append("p.genre = :genre")
         params["genre"] = genre
@@ -122,6 +125,11 @@ def performances(
         clauses.append("p.status = :status")
         params["status"] = status
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    pagination = ""
+    if limit is not None:
+        pagination = "LIMIT :limit OFFSET :offset"
+        params["limit"] = limit
+        params["offset"] = offset
     sql = f"""
         SELECT p.id, p.kopis_id, p.title, p.poster_url, p.genre, p.status,
                p.start_date, p.end_date, v.name AS venue_name, v.province
@@ -129,15 +137,11 @@ def performances(
         JOIN venues v ON v.id = p.venue_id
         {where}
         ORDER BY p.start_date ASC, p.id ASC
-        LIMIT :limit OFFSET :offset
+        {pagination}
     """
     with engine.begin() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
-    return {
-        "items": [performance_card(row) for row in rows],
-        "limit": limit,
-        "offset": offset,
-    }
+    return {"items": [performance_card(row) for row in rows]}
 
 
 @app.get("/performances/{performance_id}")
