@@ -119,7 +119,7 @@ sonar-booking:
         -v $CI_PROJECT_DIR:/workspace
         -w /workspace
         python:3.12-slim
-        sh -c "pip install -q pytest pytest-cov pyjwt fastapi httpx sqlalchemy redis && PYTHONPATH=/workspace/services/booking-service PYTHONDONTWRITEBYTECODE=1 python -m pytest services/booking-service/tests/ --cov=services/booking-service/app --cov-report=xml:coverage-booking.xml -q -p no:cacheprovider && sed -i 's|/workspace|/usr/src|g' /workspace/coverage-booking.xml"
+        sh -c "pip install -q pytest pytest-cov pyjwt fastapi httpx sqlalchemy redis && PYTHONPATH=/workspace/services/booking-service PYTHONDONTWRITEBYTECODE=1 python -m pytest services/booking-service/tests/ --cov=services/booking-service/app --cov-report=xml:coverage-booking.xml -q -p no:cacheprovider && sed -i 's|/workspace|/usr/src|g' /workspace/coverage-booking.xml && find /workspace/services/booking-service -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null; find /workspace/services/booking-service -type d -name '.pytest_cache' -exec rm -rf {} + 2>/dev/null; true"
     - docker run --rm
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
