@@ -51,6 +51,7 @@ sonar-frontend:
         $HARBOR_REGISTRY/booking_ticket/sonar-scanner-cli:latest
         -Dsonar.projectKey=frontend
         -Dsonar.sources=apps/frontend/src
+        -Dsonar.qualitygate.wait=true
   rules:
     - changes:
         - apps/frontend/**/*
@@ -68,6 +69,7 @@ sonar-auth:
         -Dsonar.projectKey=auth-service
         -Dsonar.sources=services/auth-service/app
         -Dsonar.python.version=3
+        -Dsonar.qualitygate.wait=true
   rules:
     - changes:
         - services/auth-service/**/*
@@ -103,6 +105,7 @@ sonar-saved:
         -Dsonar.projectKey=saved-service
         -Dsonar.sources=services/saved-service/app
         -Dsonar.python.version=3
+        -Dsonar.qualitygate.wait=true
   rules:
     - changes:
         - services/saved-service/**/*
@@ -129,6 +132,7 @@ sonar-booking:
         -Dsonar.sources=services/booking-service/app
         -Dsonar.python.version=3
         -Dsonar.python.coverage.reportPaths=coverage-booking.xml
+        -Dsonar.qualitygate.wait=true
   rules:
     - changes:
         - services/booking-service/**/*
@@ -146,6 +150,7 @@ sonar-payment:
         -Dsonar.projectKey=payment-service
         -Dsonar.sources=services/payment-service/app
         -Dsonar.python.version=3
+        -Dsonar.qualitygate.wait=true
   rules:
     - changes:
         - services/payment-service/**/*
