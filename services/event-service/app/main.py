@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
+ADMIN_PASSWORD = "admin1234"
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@postgres:5432/event_db")
 engine: Engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 app = FastAPI(title="event-service")
