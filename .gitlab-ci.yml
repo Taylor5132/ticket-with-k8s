@@ -85,6 +85,7 @@ sonar-event:
         -Dsonar.projectKey=event-service
         -Dsonar.sources=services/event-service/app
         -Dsonar.python.version=3
+        -Dsonar.qualitygate.wait=true
   rules:
     - changes:
         - services/event-service/**/*
