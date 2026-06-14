@@ -138,18 +138,24 @@ export default function Dashboard() {
       });
   }, [queryFor]);
 
-  // Infinite scroll: load the next page when the sentinel nears the viewport.
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+  // Infinite scroll via a CALLBACK ref (not useEffect): the sentinel only
+  // mounts after the first page loads, and a [loadMore]-deps effect would not
+  // re-run at that moment — so the observer never attached. A callback ref
+  // fires exactly when the node mounts/unmounts, so the observer is reliably
+  // (re)attached. loadMoreRef keeps the callback stable while always calling
+  // the latest loadMore (new filter/offset).
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const setSentinel = useCallback((node: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    if (!node) return;
+    observerRef.current = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMoreRef.current(); },
       { rootMargin: "600px" },
     );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [loadMore]);
+    observerRef.current.observe(node);
+  }, []);
 
   const activeLabels = [genre, area].filter(Boolean).join(" · ");
   const hasMore = items.length < total;
@@ -182,7 +188,7 @@ export default function Dashboard() {
                 count={total}
                 items={items}
               />
-              <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+              <div ref={setSentinel} aria-hidden style={{ height: 1 }} />
               {loadingMore && <p className="loadingMsg">더 불러오는 중…</p>}
               {!hasMore && total > 0 && <p className="empty">모든 공연을 불러왔습니다.</p>}
             </>
