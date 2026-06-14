@@ -104,6 +104,7 @@ def performances(
     genre: str | None = Query(default=None),
     area: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    ids: str | None = Query(default=None),
     limit: int | None = Query(default=None, ge=1, le=2000),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
@@ -124,6 +125,10 @@ def performances(
     if status:
         clauses.append("p.status = :status")
         fparams["status"] = status
+    if ids:
+        # bulk fetch by id (e.g. the banner's pinned shows) in one round-trip
+        clauses.append("p.id::text = ANY(:ids)")
+        fparams["ids"] = [x for x in ids.split(",") if x]
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     sql = f"""
         SELECT p.id, p.kopis_id, p.title, p.poster_url, p.genre, p.status,

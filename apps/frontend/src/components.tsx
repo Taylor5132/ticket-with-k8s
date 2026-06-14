@@ -1,17 +1,25 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { PerformanceSummary } from "./types";
 import { formatPeriod } from "./format";
+import { api } from "./api";
 
 const PINNED_IDS: string[] = ["72", "31", "89", "25", "71"];
 
-export function Banner({ items }: { items: PerformanceSummary[] }) {
+export function Banner() {
   const [idx, setIdx] = useState(0);
-  const list = useMemo(
-    () => PINNED_IDS.map((id) => items.find((i) => i.id === id)).filter(Boolean) as PerformanceSummary[],
-    [items],
-  );
+  const [list, setList] = useState<PerformanceSummary[]>([]);
+  // Self-fetch the pinned shows in one call — infinite scroll no longer
+  // guarantees they're in the loaded grid pages.
+  useEffect(() => {
+    api<{ items: PerformanceSummary[] }>(`/api/performances?ids=${PINNED_IDS.join(",")}`)
+      .then((d) => {
+        const byId = new Map(d.items.map((i) => [i.id, i]));
+        setList(PINNED_IDS.map((id) => byId.get(id)).filter(Boolean) as PerformanceSummary[]);
+      })
+      .catch(() => setList([]));
+  }, []);
   useEffect(() => {
     if (list.length === 0) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % list.length), 5000);

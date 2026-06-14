@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { api } from "../api";
 import type { PerformanceSummary } from "../types";
 import { Banner, GridSection, PosterRow } from "../components";
 
 type CountedOption = [name: string, count: number];
+const PAGE = 24;
 
 /** 오늘 자정 기준 남은 일수. 내일이면 1, 모레면 2. */
 function dDay(dateStr: string): number {
@@ -12,15 +13,6 @@ function dDay(dateStr: string): number {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((new Date(y, m - 1, d).getTime() - today.getTime()) / 86_400_000);
-}
-
-function countBy(items: PerformanceSummary[], key: (i: PerformanceSummary) => string): CountedOption[] {
-  const map = new Map<string, number>();
-  for (const item of items) {
-    const k = key(item);
-    if (k) map.set(k, (map.get(k) ?? 0) + 1);
-  }
-  return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
 }
 
 function FilterGroup({ label, options, total, current, onChange }: {
@@ -54,43 +46,117 @@ function FilterGroup({ label, options, total, current, onChange }: {
   );
 }
 
+type Facets = { total: number; genres: CountedOption[]; areas: CountedOption[] };
+
 export default function Dashboard() {
-  const [items, setItems] = useState<PerformanceSummary[]>([]);
-  const [loading, setLoading] = useState(true);
   const [genre, setGenre] = useState<string | null>(null);
   const [area, setArea] = useState<string | null>(null);
+  const [facets, setFacets] = useState<Facets>({ total: 0, genres: [], areas: [] });
+  const [upcoming, setUpcoming] = useState<PerformanceSummary[]>([]);
+  const [items, setItems] = useState<PerformanceSummary[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  // Filter facets (genre/area counts) + catalog total — computed server-side,
+  // fetched once. Replaces the old client-side countBy over the full catalog.
   useEffect(() => {
-    api<{ items: PerformanceSummary[] }>("/api/performances")
-      .then((data) => setItems(data.items))
-      .finally(() => setLoading(false));
+    api<{ total: number; genres: { name: string; count: number }[]; areas: { name: string; count: number }[] }>(
+      "/api/performances/facets",
+    )
+      .then((d) =>
+        setFacets({
+          total: d.total,
+          genres: d.genres.map((g) => [g.name, g.count] as CountedOption),
+          areas: d.areas.map((a) => [a.name, a.count] as CountedOption),
+        }),
+      )
+      .catch(() => {});
   }, []);
 
-  const genreOptions = useMemo(() => countBy(items, (i) => i.genre), [items]);
-  const areaOptions = useMemo(() => countBy(items, (i) => i.area), [items]);
-
-  const filtered = useMemo(
-    () => items.filter((i) => (!genre || i.genre === genre) && (!area || i.area === area)),
-    [items, genre, area],
+  const queryFor = useCallback(
+    (offset: number) => {
+      const p = new URLSearchParams();
+      if (genre) p.set("genre", genre);
+      if (area) p.set("area", area);
+      p.set("limit", String(PAGE));
+      p.set("offset", String(offset));
+      return p.toString();
+    },
+    [genre, area],
   );
-  const upcoming = useMemo(
-    () => filtered
-      .filter((i) => {
-        if (i.status !== "공연예정") return false;
-        const d = dDay(i.start_date);
-        return d >= 1 && d <= 3;
+
+  // Reset and load the first page (+ "오픈 예정") whenever the filter changes.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setItems([]);
+    api<{ items: PerformanceSummary[]; total: number }>(`/api/performances?${queryFor(0)}`)
+      .then((d) => {
+        if (cancelled) return;
+        setItems(d.items);
+        setTotal(d.total);
       })
-      .sort((a, b) => dDay(a.start_date) - dDay(b.start_date)),
-    [filtered],
-  );
+      .catch(() => {
+        if (!cancelled) {
+          setItems([]);
+          setTotal(0);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-  if (loading) return <section><p className="loadingMsg">공연 목록을 불러오는 중입니다...</p></section>;
+    const up = new URLSearchParams();
+    if (genre) up.set("genre", genre);
+    if (area) up.set("area", area);
+    api<{ items: PerformanceSummary[] }>(`/api/performances/upcoming?${up.toString()}`)
+      .then((d) => { if (!cancelled) setUpcoming(d.items); })
+      .catch(() => { if (!cancelled) setUpcoming([]); });
+
+    return () => { cancelled = true; };
+  }, [genre, area, queryFor]);
+
+  // Refs so loadMore keeps one identity per filter but always reads the latest
+  // counts — avoids re-creating the IntersectionObserver on every page append.
+  const itemsLenRef = useRef(0);
+  const totalRef = useRef(0);
+  const busyRef = useRef(false);
+  itemsLenRef.current = items.length;
+  totalRef.current = total;
+
+  const loadMore = useCallback(() => {
+    if (busyRef.current || itemsLenRef.current === 0 || itemsLenRef.current >= totalRef.current) return;
+    busyRef.current = true;
+    setLoadingMore(true);
+    api<{ items: PerformanceSummary[]; total: number }>(`/api/performances?${queryFor(itemsLenRef.current)}`)
+      .then((d) => setItems((cur) => [...cur, ...d.items]))
+      .catch(() => {})
+      .finally(() => {
+        busyRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [queryFor]);
+
+  // Infinite scroll: load the next page when the sentinel nears the viewport.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore(); },
+      { rootMargin: "600px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMore]);
 
   const activeLabels = [genre, area].filter(Boolean).join(" · ");
+  const hasMore = items.length < total;
 
   return (
     <section>
-      <Banner items={items} />
+      <Banner />
       <div className="dashboardLayout">
         <aside className="filterSidebar">
           <div className="filterHead">
@@ -101,17 +167,26 @@ export default function Dashboard() {
               </button>
             )}
           </div>
-          <FilterGroup label="장르" options={genreOptions} total={items.length} current={genre} onChange={setGenre} />
-          <FilterGroup label="지역" options={areaOptions} total={items.length} current={area} onChange={setArea} />
+          <FilterGroup label="장르" options={facets.genres} total={facets.total} current={genre} onChange={setGenre} />
+          <FilterGroup label="지역" options={facets.areas} total={facets.total} current={area} onChange={setArea} />
         </aside>
 
         <div className="dashboardMain">
           <PosterRow title="오픈 예정" items={upcoming} getBadge={(i) => `D-${dDay(i.start_date)}`} />
-          <GridSection
-            title={activeLabels ? `${activeLabels} 공연` : "전체 공연"}
-            count={filtered.length}
-            items={filtered}
-          />
+          {loading && items.length === 0 ? (
+            <p className="loadingMsg">공연 목록을 불러오는 중입니다...</p>
+          ) : (
+            <>
+              <GridSection
+                title={activeLabels ? `${activeLabels} 공연` : "전체 공연"}
+                count={total}
+                items={items}
+              />
+              <div ref={sentinelRef} aria-hidden style={{ height: 1 }} />
+              {loadingMore && <p className="loadingMsg">더 불러오는 중…</p>}
+              {!hasMore && total > 0 && <p className="empty">모든 공연을 불러왔습니다.</p>}
+            </>
+          )}
         </div>
       </div>
     </section>
