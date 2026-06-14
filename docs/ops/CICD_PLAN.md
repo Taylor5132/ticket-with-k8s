@@ -289,3 +289,138 @@ Admin Area → Settings → Network → Outbound requests
 - 전체 노드: 192.168.0.x 동일 대역
 - Harbor HTTPS 인증서: 전체 노드에 등록 완료
 - K8s 파드 내부망(Cilium CNI)에서 Harbor 접근: 노드 IP(192.168.0.237)로 접근
+
+---
+
+## CI/CD 시연 시나리오 (API 서비스 — event-service)
+
+> 개발자가 패스워드를 하드코딩하여 GitLab에 push한 상황에서 CI/CD가 어떻게 작동하는지 보여주는 시나리오
+
+### 파이프라인 구조
+
+```
+코드 push
+  → code-quality (SonarQube Quality Gate)
+  → build (Docker 이미지 빌드 + Harbor push)
+  → scan (Trivy 취약점 스캔)
+  → update-manifest (manifest 레포 이미지 태그 자동 업데이트)
+  → ArgoCD 자동 감지 → 클러스터 배포
+```
+
+### SonarQube Quality Gate 설정
+
+- Gate 이름: `Sonar way` (Default, Built-in)
+- 조건 (신규 코드 기준):
+  - New code has 0 issues
+  - All new security hotspots are reviewed
+  - New code has sufficient test coverage (≥ 80%)
+  - New code has limited duplications (≤ 3%)
+- `sonar-event` 잡에 `-Dsonar.qualitygate.wait=true` 설정 — Quality Gate 실패 시 exit 1 반환하여 build 단계 차단
+
+---
+
+### [1단계] 취약점 코드 삽입 후 push
+
+`services/event-service/app/main.py` 상단에 아래 코드 삽입:
+
+```python
+ADMIN_PASSWORD = "admin1234"
+```
+
+```bash
+git add services/event-service/app/main.py
+git commit -m "feat: event-service 기능 수정"
+git push gitlab main
+```
+
+> "개발자가 코드를 수정하고 GitLab에 push했습니다. 이 코드에는 패스워드가 하드코딩된 보안 취약점이 포함되어 있습니다. 파이프라인이 자동으로 시작됩니다."
+
+---
+
+### [2단계] GitLab 파이프라인 — sonar-event 실패 확인
+
+*(GitLab UI → CI/CD → Pipelines → 실행 중인 파이프라인 클릭)*
+
+```
+code-quality: FAILED
+  └─ sonar-event: Failed
+build: 실행되지 않음 (차단)
+```
+
+> "code-quality 단계에서 sonar-event 잡이 실패한 것을 볼 수 있습니다. SonarQube Quality Gate가 하드코딩된 패스워드를 감지했기 때문입니다. build 단계로 진행되지 않아 취약한 코드는 이미지로 빌드되지도, 클러스터에 배포되지도 않습니다."
+
+---
+
+### [3단계] SonarQube UI — 취약점 상세 확인
+
+*(SonarQube → Projects → event-service → Issues)*
+
+> "`ADMIN_PASSWORD = "admin1234"` 라인이 하드코딩된 자격증명으로 탐지되었고, Quality Gate 조건인 'New code has 0 issues'를 충족하지 못해 차단된 것입니다."
+
+---
+
+### [4단계] 취약점 수정 후 재push
+
+```bash
+# main.py에서 ADMIN_PASSWORD = "admin1234" 줄 삭제 후 저장
+git add services/event-service/app/main.py
+git commit -m "fix: 하드코딩 제거"
+git push gitlab main
+```
+
+> "취약점 코드를 제거하고 다시 push합니다. 이번엔 보안 검증을 통과할 수 있는지 확인하겠습니다."
+
+---
+
+### [5단계] 파이프라인 전체 통과 확인
+
+*(GitLab UI → Pipelines → 새 파이프라인)*
+
+```
+code-quality → build → scan → update-manifest: 전부 passed
+```
+
+- `update-manifest` 잡 로그에서 manifest 레포 이미지 태그가 새 커밋 SHA로 업데이트된 것 확인
+
+> "이번엔 sonar-event가 통과되었습니다. code-quality → build → scan → update-manifest 순서로 전체 파이프라인이 진행됩니다."
+
+---
+
+### [6단계] Harbor — 새 이미지 확인
+
+*(Harbor UI → booking_ticket → event-service)*
+
+> "Harbor 이미지 레지스트리에 방금 빌드된 이미지가 올라와 있습니다. 태그가 커밋 SHA와 일치하는 것을 확인할 수 있습니다."
+
+---
+
+### [7단계] GitLab manifest 레포 — YAML 이미지 태그 확인
+
+*(GitLab → manifest 레포 → booking/04-app-services.yaml)*
+
+> "CI가 manifest 레포의 YAML 파일을 자동으로 수정했습니다. event-service의 이미지 태그가 새 버전으로 바뀐 것을 볼 수 있습니다. 개발자가 직접 manifest를 수정하지 않아도 됩니다."
+
+---
+
+### [8단계] ArgoCD — 자동 배포 확인
+
+*(ArgoCD UI → ticket-app → event-service Deployment)*
+
+확인 포인트:
+- `LAST SYNC`: `update event-service to <SHA>` 커밋 메시지 확인
+- `event-service` Deployment revision 번호 증가
+- ReplicaSet `Healthy N pods` 확인
+
+> "ArgoCD가 manifest 레포 변경을 감지하고 클러스터에 자동으로 반영했습니다. event-service 파드가 새 이미지로 교체된 것을 확인할 수 있습니다."
+
+---
+
+### [9단계] 브라우저 — 서비스 동작 확인
+
+> "실제 사이트에서 서비스가 정상적으로 동작하는지 확인하겠습니다."
+
+---
+
+### 마무리 멘트
+
+> "CI/CD(GitOps)를 사용하므로 코드 push 한 번으로 보안 검증 → 이미지 빌드 → 취약점 스캔 → manifest 업데이트 → 클러스터 배포까지 전 과정이 자동화됩니다. 취약한 코드는 SonarQube Quality Gate에서 차단되어 클러스터에 절대 도달하지 않고, 모든 배포는 커밋 SHA로 추적 가능합니다. 각자의 역할에 집중하여 운영의 부담을 줄일 수 있습니다."

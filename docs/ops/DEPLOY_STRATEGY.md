@@ -25,7 +25,7 @@
 | **queue-dispatcher** | RollingUpdate | Redis SortedSet 원자적 연산으로 중복 처리 불가 |
 | **booking-worker** | Recreate | Redis Streams Queue consumer, 중복 처리 방지 |
 | **admission-worker** | Recreate | Redis Streams Queue consumer, 중복 처리 방지 |
-| **frontend** | RollingUpdate | Stateless, 버전 혼재 무방 |
+| **frontend** | RollingUpdate | Stateless, 버전 혼재 무방 (시연 시 Blue/Green으로 임시 전환) |
 
 ---
 
@@ -75,26 +75,43 @@ strategy:
 - v1 파드가 살아있어 롤백이 수초 내 가능 (파드 재시작 불필요)
 - RollingUpdate와 달리 v1/v2 혼재 구간 없음
 
-### 시연 명령어
+### 시연 명령어 (frontend 기준 — 시연용 Blue/Green)
 
 ```bash
-# v2 배포 (트래픽 0%)
-kubectl apply -f booking-api-v2.yaml -n backend
+# [1단계] v1, v2 파드 동시 실행 확인
+kubectl get pods -n frontend --show-labels | grep frontend
 
-# v2 내부 검증 (실 트래픽에 영향 없음)
-kubectl port-forward pod/<v2-pod-name> 8080:8000 -n backend
-curl http://localhost:8080/docs  # FastAPI 기본 제공 엔드포인트 (인증 불필요)
+# [2단계] Service가 v1 바라보는지 확인
+kubectl get svc frontend -n frontend -o jsonpath='{.spec.selector}'
 
-# 트래픽 전환 (v2로)
-kubectl patch service booking-api -n backend \
-  -p '{"spec":{"selector":{"version":"v2"}}}'
+# [3단계] v2 파드 사전 검증 (실 트래픽 영향 없음)
+kubectl port-forward deployment/frontend-v2 8080:5173 -n frontend
+# → 브라우저 localhost:8080 에서 v2 UI 확인 후 Ctrl+C
 
-# 롤백 (v1으로)
-kubectl patch service booking-api -n backend \
-  -p '{"spec":{"selector":{"version":"v1"}}}'
+# [4단계] Endpoint 실시간 감시 (별도 터미널)
+kubectl get endpoints frontend -n frontend -w
+
+# [5단계] v2로 트래픽 전환 + 소요시간 측정
+START=$(date +%s) && \
+kubectl patch service frontend -n frontend \
+  -p '{"spec":{"selector":{"app":"frontend","version":"v2"}}}' && \
+END=$(date +%s) && echo "전환 소요시간: $((END-START))초"
+
+# [6단계] v1 롤백 + 소요시간 측정
+START=$(date +%s) && \
+kubectl patch service frontend -n frontend \
+  -p '{"spec":{"selector":{"app":"frontend","version":"v1"}}}' && \
+END=$(date +%s) && echo "롤백 소요시간: $((END-START))초"
 ```
 
-**적용 대상:** booking-api, payment-service
+### 시연 manifest 구성 (frontend)
+
+| 파일 | 내용 |
+|------|------|
+| `booking/05-frontend.yaml` | v1 Deployment (image: 7ebd7bdb) + Service (selector: version=v1) |
+| `booking/05-frontend-v2.yaml` | v2 Deployment (image: 193164c5, 헤더 텍스트 변경) |
+
+**적용 대상:** booking-api, payment-service (운영), frontend (시연 한정)
 
 ---
 
