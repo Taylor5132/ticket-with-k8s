@@ -142,16 +142,15 @@ export function setup() {
 }
 
 // ── event-service load: pure public GETs, no auth, no writes ─────────
+// Hits ONLY the single-row detail endpoint. The /performances LIST endpoint
+// is deliberately avoided here: it returns the whole catalog and, under
+// concurrency, OOM-kills the pod (256Mi) — which crashes pods faster than
+// KEDA can scale and zeroes the very metrics KEDA reads. Detail lookups
+// drive RPS cleanly so you can observe the RPS trigger scale 2→8.
 export function eventLoad() {
   const perfId = PERFS[(__VU - 1) % PERFS.length];
-  // Mix the JOIN-heavy listing with the single-row detail lookup.
-  if (__ITER % 2 === 0) {
-    const r = http.get(`${BASE_URL}/api/performances`);
-    check(r, { "perf-list 200": (x) => x.status === 200 });
-  } else {
-    const r = http.get(`${BASE_URL}/api/performances/${perfId}`);
-    check(r, { "perf-detail 200": (x) => x.status === 200 });
-  }
+  const r = http.get(`${BASE_URL}/api/performances/${perfId}`);
+  check(r, { "perf-detail 200": (x) => x.status === 200 });
 }
 
 // ── booking-api load: seat-availability read (routes to booking-api) ─

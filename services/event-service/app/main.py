@@ -104,9 +104,14 @@ def performances(
     genre: str | None = Query(default=None),
     area: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
 ) -> dict:
+    # Pagination is mandatory: the catalog holds thousands of rows and an
+    # unbounded SELECT materialized every row as a dict per request, which
+    # OOM-killed the pod (256Mi limit) under load. limit is capped at 200.
     clauses = []
-    params = {}
+    params: dict = {"limit": limit, "offset": offset}
     if genre:
         clauses.append("p.genre = :genre")
         params["genre"] = genre
@@ -124,10 +129,15 @@ def performances(
         JOIN venues v ON v.id = p.venue_id
         {where}
         ORDER BY p.start_date ASC, p.id ASC
+        LIMIT :limit OFFSET :offset
     """
     with engine.begin() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
-    return {"items": [performance_card(row) for row in rows]}
+    return {
+        "items": [performance_card(row) for row in rows],
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @app.get("/performances/{performance_id}")
