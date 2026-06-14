@@ -6,6 +6,8 @@ CVE-2025-69720
 
 # bookworm-slim sqlite3 - 업스트림 패치 없음 (affected)
 CVE-2025-7458
+CVE-2026-11822
+CVE-2026-11824
 
 # bookworm-slim perl-base - 패치 없음 (fix_deferred / affected)
 CVE-2026-42496
