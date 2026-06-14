@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 
 @pytest.fixture(autouse=True)
@@ -118,3 +118,37 @@ class TestReclaimStale:
 
         result = reclaim_stale()
         assert result == 2
+
+
+# ── main() 루프 ───────────────────────────────────────────
+
+def test_admission_worker_main_normal(reset_admission_r):
+    """main() 루프: 입장 토큰 발급 → reclaim → KeyboardInterrupt로 탈출."""
+    mock_r = reset_admission_r
+    entries = [("msg-1", {"performance_id": "p", "show_date": "2026-01-01", "user_id": "u"})]
+    mock_r.xreadgroup.side_effect = [
+        [("work-stream", entries)],  # 첫 번째: 항목 있음
+        KeyboardInterrupt(),         # 두 번째: 루프 탈출
+    ]
+
+    with patch("app.admission_worker.process_entries", return_value=2), \
+         patch("app.admission_worker.reclaim_stale", return_value=1), \
+         patch("app.admission_worker.CLAIM_EVERY", 1):
+        with pytest.raises(KeyboardInterrupt):
+            import app.admission_worker
+            app.admission_worker.main()
+
+
+def test_admission_worker_main_exception(reset_admission_r):
+    """main() 루프: xreadgroup 에러 → except 처리 → KeyboardInterrupt로 탈출."""
+    mock_r = reset_admission_r
+    mock_r.xreadgroup.side_effect = [
+        Exception("Redis 연결 끊김"),  # except Exception 분기
+        KeyboardInterrupt(),
+    ]
+
+    with patch("app.admission_worker.reclaim_stale", return_value=0), \
+         patch("app.admission_worker.time.sleep"):
+        with pytest.raises(KeyboardInterrupt):
+            import app.admission_worker
+            app.admission_worker.main()

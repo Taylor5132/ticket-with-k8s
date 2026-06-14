@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture(autouse=True)
@@ -72,3 +72,14 @@ def test_dispatch_once_zero_moved(reset_dispatcher_mocks):
 
     from app.dispatcher import dispatch_once
     assert dispatch_once() == 0
+
+
+# ── main() 루프 ───────────────────────────────────────────
+
+def test_dispatcher_main_normal_and_error(reset_dispatcher_mocks):
+    """main() 루프: 정상 dispatch → 에러 처리 → KeyboardInterrupt로 탈출."""
+    with patch("app.dispatcher.dispatch_once", side_effect=[5, ValueError("redis err"), KeyboardInterrupt()]), \
+         patch("app.dispatcher.time.sleep"):
+        with pytest.raises(KeyboardInterrupt):
+            import app.dispatcher
+            app.dispatcher.main()
