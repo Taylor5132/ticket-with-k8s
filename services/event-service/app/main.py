@@ -2,6 +2,7 @@
 import os
 import re
 from datetime import date, timedelta
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -101,12 +102,12 @@ def performance_card(row) -> dict:
 
 @app.get("/performances")
 def performances(
-    genre: str | None = Query(default=None),
-    area: str | None = Query(default=None),
-    status: str | None = Query(default=None),
-    ids: str | None = Query(default=None),
-    limit: int | None = Query(default=None, ge=1, le=2000),
-    offset: int = Query(default=0, ge=0),
+    genre: Annotated[str | None, Query()] = None,
+    area: Annotated[str | None, Query()] = None,
+    status: Annotated[str | None, Query()] = None,
+    ids: Annotated[str | None, Query()] = None,
+    limit: Annotated[int | None, Query(ge=1, le=2000)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict:
     # The dashboard fetches the FULL catalog once and derives every view
     # client-side (filters, "opening soon", grid), so the default must return
@@ -188,8 +189,8 @@ def performances_facets() -> dict:
 
 @app.get("/performances/upcoming")
 def performances_upcoming(
-    genre: str | None = Query(default=None),
-    area: str | None = Query(default=None),
+    genre: Annotated[str | None, Query()] = None,
+    area: Annotated[str | None, Query()] = None,
 ) -> dict:
     """'오픈 예정' row: performances opening in the next 1-3 days (D-1..D-3),
     honoring the active genre/area filter. Replaces the client-side D-day scan.
