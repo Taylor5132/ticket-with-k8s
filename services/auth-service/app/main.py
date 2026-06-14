@@ -1,4 +1,5 @@
 #test
+from typing import Annotated
 import json
 import os
 import re
@@ -97,7 +98,7 @@ def upsert_user(conn, id: str, provider: str, login_id: str, display_name: str) 
     return dict(row)
 
 
-def current_user(authorization: str = Header(default="")) -> dict:
+def current_user(authorization: Annotated[str, Header()] = "") -> dict:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "로그인이 필요한 기능입니다."})
     token = authorization.removeprefix("Bearer ").strip()
@@ -171,7 +172,7 @@ def local_login(body: LocalLoginRequest) -> dict:
 
 
 @app.get("/auth/me")
-def me(user: dict = Depends(current_user)) -> dict:
+def me(user: Annotated[dict, Depends(current_user)]) -> dict:
     with engine.begin() as conn:
         row = conn.execute(
             text("SELECT id, provider, login_id, display_name FROM users WHERE id = :id"),
@@ -203,7 +204,7 @@ def google_login():
 
 
 @app.get("/auth/google/callback")
-def google_callback(request: Request, code: str = Query(default=""), state: str = Query(default=""), error: str = Query(default="")):
+def google_callback(request: Request, code: Annotated[str, Query()] = "", state: Annotated[str, Query()] = "", error: Annotated[str, Query()] = ""):
     if error:
         return RedirectResponse(f"{FRONTEND_URL}/?oauth_error={urllib.parse.quote(error)}")
 

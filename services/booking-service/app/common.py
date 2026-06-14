@@ -1,3 +1,4 @@
+from typing import Annotated
 import os
 
 import jwt
@@ -90,7 +91,7 @@ GRADE_RULES = {
 }
 
 
-def current_user(authorization: str = Header(default="")) -> dict:
+def current_user(authorization: Annotated[str, Header()] = "") -> dict:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "로그인이 필요한 기능입니다."})
     try:

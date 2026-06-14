@@ -1,4 +1,5 @@
 # test
+from typing import Annotated
 import os
 import uuid
 
@@ -35,7 +36,7 @@ def default_balance(user_id: str) -> int:
     return 300000 if "demo-rich" in user_id else 100000
 
 
-def current_user(authorization: str = Header(default="")) -> dict:
+def current_user(authorization: Annotated[str, Header()] = "") -> dict:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "로그인이 필요한 기능입니다."})
     try:
@@ -60,14 +61,14 @@ def health() -> dict:
 
 
 @app.get("/payments/me/balance")
-def balance(user: dict = Depends(current_user)) -> dict:
+def balance(user: Annotated[dict, Depends(current_user)]) -> dict:
     with engine.begin() as conn:
         balance_value = ensure_balance(conn, user["id"])
     return {"balance": balance_value}
 
 
 @app.get("/payments/me/history")
-def history(user: dict = Depends(current_user)) -> dict:
+def history(user: Annotated[dict, Depends(current_user)]) -> dict:
     with engine.begin() as conn:
         rows = conn.execute(
             text(
@@ -92,7 +93,7 @@ def history(user: dict = Depends(current_user)) -> dict:
 
 
 @app.post("/payments/deduct")
-def deduct(body: DeductRequest, x_service_token: str = Header(default="")) -> dict:
+def deduct(body: DeductRequest, x_service_token: Annotated[str, Header()] = "") -> dict:
     if x_service_token != SERVICE_TOKEN:
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "요청 권한이 없습니다."})
     with engine.begin() as conn:

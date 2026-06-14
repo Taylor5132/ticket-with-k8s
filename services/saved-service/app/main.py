@@ -1,4 +1,5 @@
 #test
+from typing import Annotated
 import os
 
 import httpx
@@ -21,7 +22,7 @@ Instrumentator().instrument(app).expose(app)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
-def current_user(authorization: str = Header(default="")) -> dict:
+def current_user(authorization: Annotated[str, Header()] = "") -> dict:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "로그인이 필요한 기능입니다."})
     try:
@@ -55,7 +56,7 @@ def health() -> dict:
 
 
 @app.get("/saved/me")
-def saved(user: dict = Depends(current_user)) -> dict:
+def saved(user: Annotated[dict, Depends(current_user)]) -> dict:
     ids = sorted(r.smembers(key(user["id"])), key=lambda item: int(item) if item.isdigit() else item)
     items = []
     with httpx.Client(timeout=5.0) as client:
@@ -67,12 +68,12 @@ def saved(user: dict = Depends(current_user)) -> dict:
 
 
 @app.post("/saved/performances/{performance_id}")
-def add_saved(performance_id: str, user: dict = Depends(current_user)) -> dict:
+def add_saved(performance_id: str, user: Annotated[dict, Depends(current_user)]) -> dict:
     r.sadd(key(user["id"]), performance_id)
     return {"performance_id": performance_id, "saved": True}
 
 
 @app.delete("/saved/performances/{performance_id}")
-def delete_saved(performance_id: str, user: dict = Depends(current_user)) -> dict:
+def delete_saved(performance_id: str, user: Annotated[dict, Depends(current_user)]) -> dict:
     r.srem(key(user["id"]), performance_id)
     return {"performance_id": performance_id, "saved": False}
