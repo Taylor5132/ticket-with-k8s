@@ -1,3 +1,4 @@
+"""event-service — performance catalog API over KOPIS data."""
 import os
 import re
 from datetime import date, timedelta
