@@ -114,7 +114,15 @@ sonar-event:
 
 sonar-saved:
   <<: *sonar_template
+  variables:
+    GIT_DEPTH: "0"
+    GIT_CLEAN_FLAGS: -ffd -e .pytest_cache -e __pycache__
   script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/workspace
+        -w /workspace
+        python:3.12-slim
+        sh -c "pip install -q pytest pytest-cov fastapi httpx sqlalchemy pyjwt redis && PYTHONPATH=/workspace/services/saved-service PYTHONDONTWRITEBYTECODE=1 python -m pytest services/saved-service/tests/ --cov=services/saved-service/app --cov-report=xml:coverage-saved.xml -q -p no:cacheprovider && sed -i 's|/workspace|/usr/src|g' /workspace/coverage-saved.xml && find /workspace/services/saved-service -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null; find /workspace/services/saved-service -type d -name '.pytest_cache' -exec rm -rf {} + 2>/dev/null; true"
     - docker run --rm
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
@@ -123,6 +131,7 @@ sonar-saved:
         -Dsonar.projectKey=saved-service
         -Dsonar.sources=services/saved-service/app
         -Dsonar.python.version=3
+        -Dsonar.python.coverage.reportPaths=coverage-saved.xml
         -Dsonar.qualitygate.wait=true
   rules:
     - changes:
