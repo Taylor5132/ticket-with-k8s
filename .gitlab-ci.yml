@@ -78,7 +78,15 @@ sonar-auth:
 
 sonar-event:
   <<: *sonar_template
+  variables:
+    GIT_DEPTH: "0"
+    GIT_CLEAN_FLAGS: -ffd -e .pytest_cache -e __pycache__
   script:
+    - docker run --rm
+        -v $CI_PROJECT_DIR:/workspace
+        -w /workspace
+        python:3.12-slim
+        sh -c "pip install -q pytest pytest-cov fastapi httpx sqlalchemy && PYTHONPATH=/workspace/services/event-service PYTHONDONTWRITEBYTECODE=1 python -m pytest services/event-service/tests/ --cov=services/event-service/app --cov-report=xml:coverage-event.xml -q -p no:cacheprovider && sed -i 's|/workspace|/usr/src|g' /workspace/coverage-event.xml && find /workspace/services/event-service -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null; find /workspace/services/event-service -type d -name '.pytest_cache' -exec rm -rf {} + 2>/dev/null; true"
     - docker run --rm
         -v $CI_PROJECT_DIR:/usr/src
         -e SONAR_HOST_URL=$SONAR_HOST_URL
@@ -87,6 +95,7 @@ sonar-event:
         -Dsonar.projectKey=event-service
         -Dsonar.sources=services/event-service/app
         -Dsonar.python.version=3
+        -Dsonar.python.coverage.reportPaths=coverage-event.xml
         -Dsonar.qualitygate.wait=true
   rules:
     - changes:
