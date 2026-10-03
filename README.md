@@ -1,6 +1,6 @@
 # Booking Ticket Platform (ticket-with-k8s)
 
-> 한국어 공연 예매 데모 플랫폼. 플래시 세일(티켓팅) 트래픽을 견디는 것을 목표로 설계된 MSA 구조다.
+> A Korean-language performance booking demo platform with a microservice (MSA) architecture designed to withstand flash-sale (ticketing) traffic.
 
 A Korean-language performance ticketing demo built as a set of FastAPI microservices and a React frontend. The core design problem is **flash-sale traffic**: booking is not processed synchronously. The booking API only accepts a request, pushes it onto a Redis Stream, and a background worker settles it, so that exactly one user wins a given (performance, date, seat). A Redis-backed waiting room (queue + admission tokens) sits in front of booking. Locally the stack runs with Docker Compose. In production it ran on an on-premises Kubernetes cluster (Istio ambient + Gateway API + Cilium), deployed through GitLab CI and ArgoCD GitOps.
 
@@ -8,7 +8,7 @@ A Korean-language performance ticketing demo built as a set of FastAPI microserv
 
 - **Accounts and login**: ID/password signup and login, a `dev-login` with demo accounts (`demo-basic` 100,000P, `demo-rich` 300,000P), and optional Google OAuth (`GOOGLE_OAUTH_ENABLED`). JWTs are issued by `auth-service`.
 - **Performance catalog**: list, facets, upcoming, and detail endpoints served by `event-service` from PostgreSQL. Data is seeded from `infra/docker-compose/postgres/init/010_ticketing.sql` (100 performances, 87 venues) and kept fresh by a daily KOPIS sync batch (`cron/`).
-- **Saved performances (관심공연)**: per-user saved list stored in Redis (`saved-service`).
+- **Saved performances**: per-user saved list stored in Redis (`saved-service`).
 - **Waiting room**: `POST /queue/join` hands out a FIFO ticket (Redis `INCR` + `ZSET`). A dispatcher admits `QUEUE_ADMISSION_RATE` users per second per queue, and an admission worker issues short-lived admission tokens. The token gate is enforced on booking when `ENFORCE_ADMISSION_TOKEN=true`.
 - **Async booking**: `POST /booking-requests` records a `PENDING` request and `XADD`s it to a Redis Stream. `booking-worker` consumes it through a consumer group, checks the seat, deducts points through `payment-service`, and marks the request `CONFIRMED` or failed. Clients poll `GET /booking-requests/{id}`.
 - **Seat availability** per performance and show date (`show_date` is required everywhere).
@@ -139,7 +139,7 @@ Reset all local data (Postgres and Redis volumes):
 docker compose down -v
 ```
 
-Expected UI flow: log in (ID/password or a demo chip) → open a performance → save it → pick a date → `예매하기` → pass the waiting room if one is active → select seats → `결제하기` → wait for the Redis Streams worker → check `마이페이지`. See [docs/ops/PROTOTYPE_RUNBOOK.md](docs/ops/PROTOTYPE_RUNBOOK.md) for details.
+Expected UI flow: log in (ID/password or a demo chip) → open a performance → save it → pick a date → click **Book** → pass the waiting room if one is active → select seats → click **Pay** → wait for the Redis Streams worker → check **My Page**. (The UI labels are in Korean.) See [docs/ops/PROTOTYPE_RUNBOOK.md](docs/ops/PROTOTYPE_RUNBOOK.md) for details.
 
 > Note: the frontend image is now a static nginx build, and `apps/frontend/nginx.conf` does not proxy `/api`. In the cluster, `/api/*` is routed by the gateway. Locally, API routing comes from Caddy (`tunnel` profile) or the Vite dev server proxy (`npm run dev`), whose targets are Compose service hostnames.
 
@@ -207,7 +207,7 @@ CI runs each service's tests with coverage before SonarQube analysis (`.gitlab-c
 | [docs/ops/](docs/ops/) | Infra and operations | K8s stack design/status, CI/CD, local runbook, load shedding, quotas/limits |
 | [docs/planning/](docs/planning/) | Historical plans (with status notes) | Initial build plan, infra plan, acceptance checklist |
 | [docs/adr/](docs/adr/) | Architecture decision records | ADR-0001 to 0007 |
-| [docs/spec/](docs/spec/) | Specifications (Korean) | Functional, API, and DB specs |
+| [docs/spec/](docs/spec/) | Specifications (in Korean) | Functional, API, and DB specs |
 | [cron/README.md](cron/README.md) | Batch guide | Running and deploying the KOPIS sync |
 | [load-test/](load-test/) | Load tests | k6 scenarios |
 | [AGENTS.md](AGENTS.md) | **Maintenance guide for AI and new contributors** | Doc-sync rules and known pitfalls |
